@@ -1,7 +1,7 @@
-import CopyLinkButton from "@/components/CopyLinkButton";
 import Link from "next/link";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
+import CopyLinkButton from "@/components/CopyLinkButton";
 import { createClient } from "@/lib/supabase/server";
 
 export default async function VerifyPage({
@@ -12,19 +12,18 @@ export default async function VerifyPage({
   const { code } = await params;
   const supabase = await createClient();
 
-  const { data: cert } = await supabase
+  // 1. Certificate — plain select, no joins
+  const { data: cert, error: certError } = await supabase
     .from("certificates")
-    .select(
-      `id, issued_at, verification_code,
-       user:profiles(full_name, avatar_url),
-       course:courses(title, icon, category, level)`
-    )
+    .select("id, user_id, course_id, verification_code, issued_at")
     .eq("verification_code", code)
     .maybeSingle();
 
-  /* ============================================================
-     NOT FOUND
-     ============================================================ */
+  if (certError) {
+    console.error("verify cert error:", certError.message);
+  }
+
+  /* ==================== NOT FOUND ==================== */
   if (!cert) {
     return (
       <>
@@ -37,7 +36,11 @@ export default async function VerifyPage({
             Certificate not found
           </h1>
           <p className="mt-3 text-slate-600 dark:text-[#94a3b8]">
-            The code <code className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-xs dark:bg-[#1b2742]">{code.slice(0, 20)}</code> doesn&apos;t match any certificate in our records.
+            The code{" "}
+            <code className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-xs dark:bg-[#1b2742]">
+              {code.slice(0, 20)}
+            </code>{" "}
+            doesn&apos;t match any certificate in our records.
           </p>
           <p className="mt-2 text-sm text-slate-500 dark:text-[#94a3b8]">
             If you believe this is an error, contact{" "}
@@ -69,8 +72,19 @@ export default async function VerifyPage({
     );
   }
 
-  const profile = Array.isArray(cert.user) ? cert.user[0] : cert.user;
-  const course = Array.isArray(cert.course) ? cert.course[0] : cert.course;
+  // 2. Profile + Course — plain parallel selects (no PostgREST joins)
+  const [{ data: profile }, { data: course }] = await Promise.all([
+    supabase
+      .from("profiles")
+      .select("full_name, avatar_url")
+      .eq("id", cert.user_id)
+      .maybeSingle(),
+    supabase
+      .from("courses")
+      .select("title, icon, category, level")
+      .eq("id", cert.course_id)
+      .maybeSingle(),
+  ]);
 
   const issuedDate = new Date(cert.issued_at).toLocaleDateString("en-GB", {
     day: "numeric",
@@ -85,17 +99,14 @@ export default async function VerifyPage({
     .slice(0, 2)
     .toUpperCase();
 
-  /* ============================================================
-     VERIFIED
-     ============================================================ */
+  /* ==================== VERIFIED ==================== */
   return (
     <>
       <Navbar />
 
       <main className="mx-auto w-full max-w-3xl flex-1 px-5 py-10 sm:px-8 sm:py-14">
-        {/* ==================== HERO BANNER ==================== */}
+        {/* HERO */}
         <div className="relative overflow-hidden rounded-3xl border border-emerald-200 bg-gradient-to-br from-emerald-50 via-white to-white p-8 text-center dark:border-emerald-800 dark:from-emerald-950/40 dark:via-[#0a0e1a] dark:to-[#0a0e1a]">
-          {/* decorative pulse dot */}
           <div className="absolute right-6 top-6 flex items-center gap-2 rounded-full bg-white/80 px-3 py-1.5 text-xs font-bold text-emerald-700 shadow-sm dark:bg-emerald-950/60 dark:text-emerald-300">
             <span className="relative flex h-2 w-2">
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
@@ -131,9 +142,8 @@ export default async function VerifyPage({
           </div>
         </div>
 
-        {/* ==================== HOLDER CARD ==================== */}
+        {/* HOLDER */}
         <div className="mt-6 overflow-hidden rounded-2xl border border-slate-200 bg-white dark:border-[#1f2a44] dark:bg-[#131c33]">
-          {/* header strip */}
           <div className="flex items-center justify-between border-b border-slate-100 bg-gradient-to-r from-blue-50 to-transparent px-6 py-4 dark:border-[#1f2a44] dark:from-blue-950/30 dark:to-transparent">
             <p className="text-xs font-extrabold uppercase tracking-[0.18em] text-blue-700 dark:text-blue-400">
               Certificate holder
@@ -144,7 +154,6 @@ export default async function VerifyPage({
           </div>
 
           <div className="flex flex-col gap-6 p-6 sm:flex-row sm:items-center">
-            {/* avatar */}
             <div className="flex justify-center sm:block">
               <span className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-blue-600 to-blue-800 text-2xl font-black text-white shadow-xl shadow-blue-900/20">
                 {profile?.avatar_url ? (
@@ -160,7 +169,6 @@ export default async function VerifyPage({
               </span>
             </div>
 
-            {/* info */}
             <div className="min-w-0 flex-1 text-center sm:text-left">
               <p className="text-xl font-black text-slate-900 dark:text-[#f1f5f9]">
                 {profile?.full_name ?? "Student"}
@@ -178,7 +186,7 @@ export default async function VerifyPage({
           </div>
         </div>
 
-        {/* ==================== CREDENTIAL DETAILS ==================== */}
+        {/* DETAILS */}
         <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-6 dark:border-[#1f2a44] dark:bg-[#131c33]">
           <p className="text-xs font-extrabold uppercase tracking-[0.18em] text-blue-700 dark:text-blue-400">
             Credential details
@@ -217,7 +225,7 @@ export default async function VerifyPage({
           </dl>
         </div>
 
-        {/* ==================== CRYPTO-FREE INTEGRITY BLOCK ==================== */}
+        {/* HOW WE VERIFY */}
         <div className="mt-6 rounded-2xl border border-blue-100 bg-blue-50 p-6 dark:border-[#1f2a44] dark:bg-[#10182b]">
           <div className="flex items-start gap-4">
             <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-white">
@@ -231,20 +239,15 @@ export default async function VerifyPage({
                 This certificate was issued by KoyoCode&apos;s system after the
                 holder completed all lessons and passed the final exam. The
                 verification code above is unique and permanently tied to this
-                credential. Anyone with the URL{" "}
-                <span className="break-all font-mono text-xs text-blue-700 dark:text-blue-400">
-                  /verify/{code.slice(0, 12)}...
-                </span>{" "}
-                can confirm its authenticity.
+                credential.
               </p>
             </div>
           </div>
         </div>
 
-        {/* ==================== ACTIONS ==================== */}
+        {/* ACTIONS */}
         <div className="mt-8 flex flex-wrap justify-center gap-3">
           <CopyLinkButton />
-
           <Link
             href="/courses"
             className="rounded-full bg-blue-700 px-6 py-3 text-sm font-bold text-white transition hover:bg-blue-800 dark:bg-blue-600"
@@ -253,7 +256,7 @@ export default async function VerifyPage({
           </Link>
         </div>
 
-        {/* ==================== FOOTER NOTE ==================== */}
+        {/* FOOTER NOTE */}
         <p className="mt-10 text-center text-xs text-slate-500 dark:text-[#94a3b8]">
           KoyoCode · New Generation Tech Academy ·{" "}
           <a

@@ -22,7 +22,7 @@ export default function CertificateView({
   const qrRef = useRef<HTMLCanvasElement>(null);
   const [qrReady, setQrReady] = useState(false);
 
-  // FULL code in the URL — no truncation
+  // Full code in the URL — no truncation
   const verifyUrl =
     typeof window !== "undefined"
       ? `${window.location.origin}/verify/${verificationCode}`
@@ -65,7 +65,6 @@ export default function CertificateView({
           🖨️ Print / Save as PDF
         </button>
 
-        {/* Uses the same component as the verify page — no alert popup */}
         <CopyLinkButton url={verifyUrl} />
       </div>
 
@@ -134,7 +133,6 @@ export default function CertificateView({
 
           {/* FOOTER */}
           <div className="mt-6 grid w-full grid-cols-3 items-end gap-4 sm:gap-6">
-            {/* Signature */}
             <div className="text-center">
               <p
                 className="text-base font-black text-slate-900 sm:text-lg"
@@ -148,7 +146,6 @@ export default function CertificateView({
               </p>
             </div>
 
-            {/* Date + partial code */}
             <div className="text-center">
               <p className="text-xs font-bold text-slate-900">{issuedDate}</p>
               <div className="mx-auto mt-1 h-px w-20 bg-slate-300 sm:w-24" />
@@ -160,7 +157,6 @@ export default function CertificateView({
               </p>
             </div>
 
-            {/* QR code — full URL embedded */}
             <div className="flex flex-col items-center">
               <canvas
                 ref={qrRef}
