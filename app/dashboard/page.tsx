@@ -134,7 +134,7 @@ export default async function DashboardPage() {
                   ⚙️ Edit profile
                 </Link>
                 <Link
-                  href="/#courses"
+                  href="/courses"
                   className="inline-flex items-center justify-center gap-2 rounded-full bg-blue-700 px-5 py-2.5 text-sm font-bold text-white shadow-lg shadow-blue-700/20 transition hover:-translate-y-0.5 hover:bg-blue-800 dark:bg-blue-600 dark:hover:bg-blue-500"
                 >
                   {totalLessons === 0 ? "Start learning" : "Continue learning"} →
