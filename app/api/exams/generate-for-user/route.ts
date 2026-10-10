@@ -11,6 +11,142 @@ type GeneratedQuestion = {
   explanation?: string;
 };
 
+// Preferred models — filtered at runtime against what the key actually has
+const PREFERRED_MODELS = [
+  "gemini-2.5-flash",
+  "gemini-2.5-flash-lite",
+  "gemini-2.5-pro",
+  "gemini-flash-latest",
+  "gemini-flash-lite-latest",
+  "gemini-3-flash-preview",
+];
+
+// Hard fallback if the model listing fails
+const FALLBACK_MODELS = [
+  "gemini-2.5-flash",
+  "gemini-2.5-flash-lite",
+  "gemini-2.5-pro",
+];
+
+/* ============================================================
+   Discover which models the key supports
+   ============================================================ */
+async function listModels(apiKey: string): Promise<string[]> {
+  try {
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`
+    );
+    if (!res.ok) return FALLBACK_MODELS;
+
+    const data = await res.json();
+    const available = new Set<string>(
+      (data.models ?? [])
+        .filter((m: any) =>
+          m.supportedGenerationMethods?.includes("generateContent")
+        )
+        .map((m: any) => String(m.name).replace(/^models\//, ""))
+    );
+
+    const ordered = PREFERRED_MODELS.filter((m) => available.has(m));
+
+    if (ordered.length > 0) return ordered;
+
+    // Nothing preferred exists — use anything flash/pro
+    const anyFlashOrPro = Array.from(available).filter(
+      (m) => m.includes("flash") || m.includes("pro")
+    );
+
+    return anyFlashOrPro.length > 0 ? anyFlashOrPro : FALLBACK_MODELS;
+  } catch {
+    return FALLBACK_MODELS;
+  }
+}
+
+/* ============================================================
+   Call a single model (tries v1beta then v1)
+   ============================================================ */
+async function callGemini(
+  apiKey: string,
+  model: string,
+  prompt: string
+): Promise<
+  { ok: true; text: string } | { ok: false; error: string; status: number }
+> {
+  const versions = ["v1beta", "v1"];
+
+  for (const v of versions) {
+    const url = `https://generativelanguage.googleapis.com/${v}/models/${model}:generateContent?key=${apiKey}`;
+
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: {
+          temperature: 0.9,
+          maxOutputTokens: 4096,
+          responseMimeType: "application/json",
+          // Disable thinking to keep generation fast (<60s on Vercel)
+          thinkingConfig: { thinkingBudget: 0 },
+        },
+      }),
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      const text = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+      if (text) return { ok: true, text };
+    }
+
+    if (res.status === 404) continue;
+
+    const raw = await res.text();
+    return {
+      ok: false,
+      error: `${v}/${model}: ${raw.slice(0, 300)}`,
+      status: res.status,
+    };
+  }
+
+  return {
+    ok: false,
+    error: `${model}: not found in v1beta or v1`,
+    status: 404,
+  };
+}
+
+/* ============================================================
+   Robust JSON extraction
+   ============================================================ */
+function extractJson(raw: string): { questions: GeneratedQuestion[] } | null {
+  try {
+    return JSON.parse(raw);
+  } catch {}
+
+  const cleaned = raw
+    .replace(/^```json\s*/i, "")
+    .replace(/^```\s*/i, "")
+    .replace(/\s*```$/i, "")
+    .trim();
+
+  try {
+    return JSON.parse(cleaned);
+  } catch {}
+
+  const start = cleaned.indexOf("{");
+  const end = cleaned.lastIndexOf("}");
+  if (start >= 0 && end > start) {
+    try {
+      return JSON.parse(cleaned.slice(start, end + 1));
+    } catch {}
+  }
+
+  return null;
+}
+
+/* ============================================================
+   POST handler
+   ============================================================ */
 export async function POST(req: Request) {
   const supabase = await createClient();
 
@@ -21,8 +157,14 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Not logged in" }, { status: 401 });
   }
 
-  const body = await req.json();
-  const { course_id } = body;
+  let body: any;
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+  }
+
+  const { course_id } = body ?? {};
   if (!course_id) {
     return NextResponse.json({ error: "course_id required" }, { status: 400 });
   }
@@ -39,7 +181,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Not enrolled" }, { status: 403 });
   }
 
-  // Load exam settings
+  // Exam settings
   const { data: settings } = await supabase
     .from("course_exam_settings")
     .select("question_count, is_enabled")
@@ -53,7 +195,7 @@ export async function POST(req: Request) {
     );
   }
 
-  // Load course + lessons
+  // Course + lessons
   const { data: course } = await supabase
     .from("courses")
     .select("title, description, category, level")
@@ -69,7 +211,7 @@ export async function POST(req: Request) {
 
   if (!course || !lessons || lessons.length === 0) {
     return NextResponse.json(
-      { error: "Course has no content" },
+      { error: "Course has no published content" },
       { status: 400 }
     );
   }
@@ -94,16 +236,16 @@ ${course.description ? `Description: ${course.description}` : ""}
 Curriculum:
 ${curriculum}
 
-Generate exactly ${count} multiple-choice questions that test understanding of the above material.
+Generate exactly ${count} multiple-choice questions testing understanding of the material above.
 
 Rules:
 - 4 options per question, exactly one correct.
 - Questions must be based only on the curriculum above.
 - Mix conceptual and practical questions.
-- Simple clear English.
-- Vary the correct_index across questions (not always 0).
+- Simple, clear English.
+- Vary the correct_index across questions.
 
-Return ONLY valid JSON, no markdown:
+Return ONLY valid JSON:
 {
   "questions": [
     {
@@ -118,52 +260,63 @@ Return ONLY valid JSON, no markdown:
   const API_KEY = process.env.GEMINI_API_KEY;
   if (!API_KEY) {
     return NextResponse.json(
-      { error: "GEMINI_API_KEY not set" },
-      { status: 500 }
-    );
-  }
-
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${API_KEY}`;
-
-  const aiRes = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: {
-        temperature: 0.85, // a bit of variety per user
-        responseMimeType: "application/json",
+      {
+        error: "GEMINI_API_KEY not configured",
+        detail:
+          "Add GEMINI_API_KEY to .env.local and to Vercel Environment Variables. Get a key at aistudio.google.com/app/apikey.",
       },
-    }),
-  });
-
-  if (!aiRes.ok) {
-    const detail = await aiRes.text();
-    console.error("Gemini error:", detail);
-    return NextResponse.json(
-      { error: "AI generation failed", detail },
       { status: 500 }
     );
   }
 
-  const aiData = await aiRes.json();
-  const raw = aiData?.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+  const models = await listModels(API_KEY);
+  let raw = "";
+  let lastError = "";
+  let lastStatus = 500;
+  let lastModel = "";
 
-  let parsed: { questions: GeneratedQuestion[] };
-  try {
-    parsed = JSON.parse(raw);
-  } catch {
-    const cleaned = raw.replace(/^```json|```$/g, "").trim();
-    try {
-      parsed = JSON.parse(cleaned);
-    } catch {
-      return NextResponse.json({ error: "AI returned bad JSON" }, { status: 500 });
+  for (const model of models) {
+    const result = await callGemini(API_KEY, model, prompt);
+    if (result.ok) {
+      raw = result.text;
+      lastModel = model;
+      lastError = "";
+      break;
     }
+    lastError = result.error;
+    lastStatus = result.status;
+    lastModel = model;
+    console.error(`Model ${model} failed:`, result.error);
+  }
+
+  if (!raw) {
+    return NextResponse.json(
+      {
+        error: `AI generation failed (${lastStatus})`,
+        detail: lastError,
+        model_tried: lastModel,
+        models_attempted: models,
+      },
+      { status: 500 }
+    );
+  }
+
+  const parsed = extractJson(raw);
+  if (!parsed) {
+    return NextResponse.json(
+      {
+        error: "AI returned invalid JSON",
+        detail: raw.slice(0, 400),
+        model_tried: lastModel,
+      },
+      { status: 500 }
+    );
   }
 
   const questions = (parsed.questions ?? []).filter(
     (q) =>
-      q.question &&
+      q &&
+      typeof q.question === "string" &&
       Array.isArray(q.options) &&
       q.options.length === 4 &&
       typeof q.correct_index === "number" &&
@@ -172,8 +325,19 @@ Return ONLY valid JSON, no markdown:
   );
 
   if (questions.length === 0) {
-    return NextResponse.json({ error: "No valid questions" }, { status: 500 });
+    return NextResponse.json(
+      {
+        error: "AI returned no valid questions",
+        detail: JSON.stringify(parsed).slice(0, 400),
+        model_tried: lastModel,
+      },
+      { status: 500 }
+    );
   }
 
-  return NextResponse.json({ questions });
+  return NextResponse.json({
+    ok: true,
+    questions,
+    model: lastModel,
+  });
 }

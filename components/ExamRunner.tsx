@@ -35,6 +35,8 @@ export default function ExamRunner({
   const [questions, setQuestions] = useState<Question[]>([]);
   const [loading, setLoading] = useState(true);
   const [genError, setGenError] = useState<string | null>(null);
+  const [genDetail, setGenDetail] = useState<string | null>(null);
+  const [modelsTried, setModelsTried] = useState<string[] | null>(null);
 
   const [current, setCurrent] = useState(0);
   const [answers, setAnswers] = useState<Record<number, number>>({});
@@ -46,32 +48,56 @@ export default function ExamRunner({
     total: number;
   } | null>(null);
 
-  // Generate on mount
+  /* ============ GENERATE ON MOUNT ============ */
   useEffect(() => {
     let cancelled = false;
+
     (async () => {
+      setLoading(true);
+      setGenError(null);
+      setGenDetail(null);
+      setModelsTried(null);
+
       try {
         const res = await fetch("/api/exams/generate-for-user", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ course_id: courseId }),
         });
-        const data = await res.json();
+
+        let data: any = null;
+        try {
+          data = await res.json();
+        } catch {
+          data = null;
+        }
+
         if (cancelled) return;
+
         if (!res.ok) {
-          setGenError(data.error ?? "Failed to generate exam");
+          setGenError(data?.error ?? `Request failed (${res.status})`);
+          setGenDetail(data?.detail ?? null);
+          setModelsTried(data?.models_attempted ?? null);
           setLoading(false);
           return;
         }
+
+        if (!data?.questions || !Array.isArray(data.questions)) {
+          setGenError("AI returned no questions");
+          setGenDetail(JSON.stringify(data).slice(0, 400));
+          setLoading(false);
+          return;
+        }
+
         setQuestions(data.questions);
         setLoading(false);
       } catch (e: any) {
-        if (!cancelled) {
-          setGenError(e.message ?? "Failed");
-          setLoading(false);
-        }
+        if (cancelled) return;
+        setGenError(e?.message ?? "Network error");
+        setLoading(false);
       }
     })();
+
     return () => {
       cancelled = true;
     };
@@ -92,33 +118,31 @@ export default function ExamRunner({
     setSubmitting(true);
 
     let correct = 0;
-    questions.forEach((q, i) => {
-      if (answers[i] === q.correct_index) correct++;
+    questions.forEach((qq, i) => {
+      if (answers[i] === qq.correct_index) correct++;
     });
 
-    const score = Math.round((correct / total) * 100);
+    const score = total ? Math.round((correct / total) * 100) : 0;
     const passed = score >= passingScore;
 
     const {
       data: { user },
     } = await supabase.auth.getUser();
-    if (!user) {
-      setSubmitting(false);
-      return;
-    }
 
-    await supabase.from("exam_attempts").upsert(
-      {
-        user_id: user.id,
-        course_id: courseId,
-        questions,
-        answers,
-        score,
-        passed,
-        completed_at: new Date().toISOString(),
-      },
-      { onConflict: "user_id,course_id" }
-    );
+    if (user) {
+      await supabase.from("exam_attempts").upsert(
+        {
+          user_id: user.id,
+          course_id: courseId,
+          questions,
+          answers,
+          score,
+          passed,
+          completed_at: new Date().toISOString(),
+        },
+        { onConflict: "user_id,course_id" }
+      );
+    }
 
     setResult({ score, passed, correct, total });
     setSubmitting(false);
@@ -131,7 +155,7 @@ export default function ExamRunner({
     setResult(null);
   }
 
-  // ============ GENERATING ============
+  /* ============ LOADING ============ */
   if (loading) {
     return (
       <div className="rounded-3xl border border-blue-100 bg-blue-50 p-12 text-center dark:border-[#1f2a44] dark:bg-[#10182b]">
@@ -147,7 +171,7 @@ export default function ExamRunner({
     );
   }
 
-  // ============ GENERATION ERROR ============
+  /* ============ ERROR ============ */
   if (genError) {
     return (
       <div className="rounded-3xl border border-red-200 bg-red-50 p-10 text-center dark:border-red-800 dark:bg-red-950/40">
@@ -155,7 +179,22 @@ export default function ExamRunner({
         <p className="mt-4 text-lg font-black text-red-800 dark:text-red-300">
           Could not prepare exam
         </p>
-        <p className="mt-2 text-sm text-red-700 dark:text-red-300">{genError}</p>
+        <p className="mt-2 text-sm font-bold text-red-700 dark:text-red-300">
+          {genError}
+        </p>
+
+        {genDetail && (
+          <pre className="mx-auto mt-4 max-w-2xl overflow-x-auto whitespace-pre-wrap break-words rounded-xl bg-red-100 p-3 text-left text-xs text-red-900 dark:bg-red-900/40 dark:text-red-200">
+            {genDetail}
+          </pre>
+        )}
+
+        {modelsTried && modelsTried.length > 0 && (
+          <p className="mt-3 text-xs text-red-700 dark:text-red-300">
+            Models tried: {modelsTried.join(", ")}
+          </p>
+        )}
+
         <button
           onClick={() => location.reload()}
           className="mt-6 rounded-full bg-red-600 px-6 py-3 font-bold text-white hover:bg-red-700"
@@ -166,7 +205,7 @@ export default function ExamRunner({
     );
   }
 
-  // ============ RESULT ============
+  /* ============ RESULT ============ */
   if (result) {
     return (
       <div
@@ -218,10 +257,9 @@ export default function ExamRunner({
     );
   }
 
-  // ============ TAKING THE EXAM ============
+  /* ============ QUESTION ============ */
   return (
     <div>
-      {/* progress */}
       <div className="mb-6">
         <div className="flex items-center justify-between text-sm font-bold text-slate-600 dark:text-[#94a3b8]">
           <span>
@@ -237,7 +275,6 @@ export default function ExamRunner({
         </div>
       </div>
 
-      {/* question card */}
       <div className="rounded-2xl border border-slate-200 bg-white p-6 sm:p-8 dark:border-[#1f2a44] dark:bg-[#131c33]">
         <p className="text-lg font-black text-slate-900 dark:text-[#f1f5f9]">
           {q.question}
@@ -272,7 +309,6 @@ export default function ExamRunner({
         </div>
       </div>
 
-      {/* nav */}
       <div className="mt-6 flex items-center justify-between">
         <button
           onClick={() => setCurrent((c) => Math.max(0, c - 1))}
@@ -300,7 +336,6 @@ export default function ExamRunner({
         )}
       </div>
 
-      {/* question dots */}
       <div className="mt-8 flex flex-wrap gap-2">
         {questions.map((_, i) => {
           const answered = answers[i] !== undefined;
