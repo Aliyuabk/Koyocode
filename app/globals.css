@@ -1,0 +1,263 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ============================================================
+   LIGHT (default)
+   ============================================================ */
+:root {
+  --accent-50:  #eff6ff;
+  --accent-100: #dbeafe;
+  --accent-200: #bfdbfe;
+  --accent-500: #3b82f6;
+  --accent-600: #2563eb;
+  --accent-700: #1d4ed8;
+  --accent-800: #1e40af;
+
+  --bg:        #ffffff;
+  --bg-soft:   #f8fafc;
+  --bg-card:   #ffffff;
+  --border:    #e2e8f0;
+  --text:      #0f172a;
+  --text-mute: #64748b;
+}
+
+/* ============================================================
+   DARK — deep navy, Coursera-style
+   ============================================================ */
+.dark {
+  --bg:        #0a0e1a;
+  --bg-soft:   #10182b;
+  --bg-card:   #131c33;
+  --border:    #1f2a44;
+  --text:      #f1f5f9;
+  --text-mute: #94a3b8;
+
+  --accent-50:  #16233d;
+  --accent-100: #1e3a8a;
+  --accent-200: #1e40af;
+  --accent-500: #60a5fa;
+  --accent-600: #3b82f6;
+  --accent-700: #2563eb;
+  --accent-800: #1d4ed8;
+}
+
+/* ---------- ACCENT VARIANTS ---------- */
+[data-accent="emerald"] {
+  --accent-50:  #ecfdf5; --accent-100: #d1fae5; --accent-200: #a7f3d0;
+  --accent-500: #10b981; --accent-600: #059669; --accent-700: #047857; --accent-800: #065f46;
+}
+.dark[data-accent="emerald"] {
+  --accent-50:  #062f22; --accent-100: #064e3b; --accent-200: #065f46;
+  --accent-500: #34d399; --accent-600: #10b981; --accent-700: #059669; --accent-800: #047857;
+}
+
+[data-accent="purple"] {
+  --accent-50:  #f5f3ff; --accent-100: #ede9fe; --accent-200: #ddd6fe;
+  --accent-500: #8b5cf6; --accent-600: #7c3aed; --accent-700: #6d28d9; --accent-800: #5b21b6;
+}
+.dark[data-accent="purple"] {
+  --accent-50:  #221347; --accent-100: #4c1d95; --accent-200: #5b21b6;
+  --accent-500: #a78bfa; --accent-600: #8b5cf6; --accent-700: #7c3aed; --accent-800: #6d28d9;
+}
+
+[data-accent="rose"] {
+  --accent-50:  #fff1f2; --accent-100: #ffe4e6; --accent-200: #fecdd3;
+  --accent-500: #f43f5e; --accent-600: #e11d48; --accent-700: #be123c; --accent-800: #9f1239;
+}
+.dark[data-accent="rose"] {
+  --accent-50:  #3f0a1a; --accent-100: #881337; --accent-200: #9f1239;
+  --accent-500: #fb7185; --accent-600: #f43f5e; --accent-700: #e11d48; --accent-800: #be123c;
+}
+
+[data-accent="amber"] {
+  --accent-50:  #fffbeb; --accent-100: #fef3c7; --accent-200: #fde68a;
+  --accent-500: #f59e0b; --accent-600: #d97706; --accent-700: #b45309; --accent-800: #92400e;
+}
+.dark[data-accent="amber"] {
+  --accent-50:  #3a2306; --accent-100: #78350f; --accent-200: #92400e;
+  --accent-500: #fbbf24; --accent-600: #f59e0b; --accent-700: #d97706; --accent-800: #b45309;
+}
+
+@theme inline {
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+
+  --color-accent-50:  var(--accent-50);
+  --color-accent-100: var(--accent-100);
+  --color-accent-200: var(--accent-200);
+  --color-accent-500: var(--accent-500);
+  --color-accent-600: var(--accent-600);
+  --color-accent-700: var(--accent-700);
+  --color-accent-800: var(--accent-800);
+
+  --color-bg:        var(--bg);
+  --color-bg-soft:   var(--bg-soft);
+  --color-bg-card:   var(--bg-card);
+  --color-border:    var(--border);
+  --color-text:      var(--text);
+  --color-text-mute: var(--text-mute);
+}
+
+/* ============================================================
+   BASE
+   ============================================================ */
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  -webkit-font-smoothing: antialiased;
+  background-color: var(--bg);
+  color: var(--text);
+  transition: background-color 0.25s ease, color 0.25s ease;
+}
+
+/* ============================================================
+   DARK GLOBAL OVERRIDES
+   ============================================================ */
+.dark body { background: var(--bg); }
+
+/* Solid backgrounds */
+.dark .bg-white       { background-color: var(--bg-card) !important; }
+.dark .bg-white\/85   { background-color: rgba(19, 28, 51, 0.85) !important; }
+.dark .bg-white\/90   { background-color: rgba(19, 28, 51, 0.90) !important; }
+.dark .bg-white\/95   { background-color: rgba(19, 28, 51, 0.95) !important; }
+.dark .bg-slate-50    { background-color: var(--bg-soft) !important; }
+.dark .bg-slate-100   { background-color: var(--bg-soft) !important; }
+.dark .bg-slate-950   { background-color: #060a14 !important; }
+
+/* Text */
+.dark .text-slate-900 { color: var(--text) !important; }
+.dark .text-slate-800 { color: var(--text) !important; }
+.dark .text-slate-700 { color: #cbd5e1 !important; }
+.dark .text-slate-600 { color: var(--text-mute) !important; }
+.dark .text-slate-500 { color: #7c8ba1 !important; }
+.dark .text-slate-400 { color: #64748b !important; }
+
+/* Borders */
+.dark .border-slate-100  { border-color: var(--border) !important; }
+.dark .border-slate-200  { border-color: var(--border) !important; }
+.dark .border-slate-300  { border-color: #334155 !important; }
+.dark .border-blue-100   { border-color: var(--border) !important; }
+.dark .border-blue-200   { border-color: #1e3a8a !important; }
+
+/* Dividers */
+.dark .divide-slate-100 > * + * { border-color: var(--border) !important; }
+.dark .divide-slate-200 > * + * { border-color: var(--border) !important; }
+
+/* Hovers */
+.dark .hover\:bg-slate-50:hover   { background-color: #1b2742 !important; }
+.dark .hover\:bg-slate-100:hover  { background-color: #1b2742 !important; }
+.dark .hover\:bg-blue-50:hover    { background-color: rgba(37, 99, 235, 0.15) !important; }
+.dark .hover\:bg-blue-50\/40:hover{ background-color: rgba(37, 99, 235, 0.12) !important; }
+
+/* ============================================================
+   DARK GRADIENT OVERRIDES — the key fix
+   Kill all to-white / from-blue-50 gradients in dark mode
+   ============================================================ */
+.dark [class*="bg-gradient-to-"] {
+  background-image: none !important;
+}
+
+/* Give those elements a flat dark background instead */
+.dark [class*="from-blue-50"],
+.dark [class*="from-blue-100"],
+.dark [class*="from-sky-50"],
+.dark [class*="from-slate-50"],
+.dark [class*="from-blue-50\/40"],
+.dark [class*="from-blue-50\/60"] {
+  background-color: #131c33 !important;
+}
+
+/* Accent gradient buttons stay vivid — don't kill these */
+.dark [class*="from-blue-500"][class*="to-blue-700"],
+.dark [class*="from-blue-600"][class*="to-blue-800"],
+.dark [class*="from-emerald-500"],
+.dark [class*="from-amber-500"],
+.dark [class*="from-purple-500"] {
+  background-image: linear-gradient(to bottom right, var(--accent-600), var(--accent-800)) !important;
+}
+
+/* Inputs */
+.dark input,
+.dark textarea,
+.dark select {
+  background-color: var(--bg-soft);
+  color: var(--text);
+  border-color: var(--border);
+}
+.dark input::placeholder,
+.dark textarea::placeholder {
+  color: #64748b;
+}
+
+/* ============================================================
+   KEYFRAMES
+   ============================================================ */
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes fade-in {
+  from { opacity: 0; } to { opacity: 1; }
+}
+@keyframes scale-in {
+  from { opacity: 0; transform: scale(0.94); }
+  to   { opacity: 1; transform: scale(1); }
+}
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-10px); }
+}
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; } 50% { opacity: 0.35; }
+}
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+@keyframes slide-down {
+  from { opacity: 0; transform: translateY(-12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes loader-bounce {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50%      { transform: translateY(-14px) scale(1.06); }
+}
+
+/* ============================================================
+   UTILITIES
+   ============================================================ */
+.animate-fade-up    { animation: fade-up 0.7s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.animate-fade-in    { animation: fade-in 0.6s ease-out both; }
+.animate-scale-in   { animation: scale-in 0.5s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.animate-float      { animation: float 4s ease-in-out infinite; }
+.animate-pulse-dot  { animation: pulse-dot 2s ease-in-out infinite; }
+.animate-slide-down { animation: slide-down 0.35s ease-out both; }
+
+.delay-1 { animation-delay: 0.1s; }
+.delay-2 { animation-delay: 0.2s; }
+.delay-3 { animation-delay: 0.3s; }
+.delay-4 { animation-delay: 0.4s; }
+
+.skeleton {
+  background: linear-gradient(90deg, var(--bg-soft) 25%, var(--border) 50%, var(--bg-soft) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+@layer base {
+  a, button {
+    transition-property: color, background-color, border-color, transform, box-shadow, opacity;
+    transition-duration: 200ms;
+    transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
