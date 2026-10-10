@@ -53,7 +53,7 @@ export default function SignupPage() {
               name="full_name"
               type="text"
               label="Full name"
-              placeholder="e.g. Aisha Bello"
+              placeholder="e.g. Isah Musa"
               autoComplete="name"
               required
               icon={<UserIcon />}
