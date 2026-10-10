@@ -32,8 +32,11 @@ export default function ExamRunner({
   const supabase = createClient();
   const router = useRouter();
 
+  // ⬇️ If the student already passed, we skip generation entirely
+  const [hasPassed] = useState(previousAttempt?.passed === true);
+
   const [questions, setQuestions] = useState<Question[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!hasPassed);
   const [genError, setGenError] = useState<string | null>(null);
   const [genDetail, setGenDetail] = useState<string | null>(null);
   const [modelsTried, setModelsTried] = useState<string[] | null>(null);
@@ -46,10 +49,21 @@ export default function ExamRunner({
     passed: boolean;
     correct: number;
     total: number;
-  } | null>(null);
+  } | null>(
+    hasPassed && previousAttempt
+      ? {
+          score: previousAttempt.score,
+          passed: true,
+          correct: Math.round((previousAttempt.score / 100) * 10),
+          total: 10,
+        }
+      : null
+  );
 
-  /* ============ GENERATE ON MOUNT ============ */
+  /* ============ GENERATE ON MOUNT (only if not passed) ============ */
   useEffect(() => {
+    if (hasPassed) return; // skip if already passed
+
     let cancelled = false;
 
     (async () => {
@@ -101,7 +115,7 @@ export default function ExamRunner({
     return () => {
       cancelled = true;
     };
-  }, [courseId]);
+  }, [courseId, hasPassed]);
 
   const total = questions.length;
   const q = questions[current];
@@ -142,6 +156,14 @@ export default function ExamRunner({
         },
         { onConflict: "user_id,course_id" }
       );
+
+      // Auto-issue certificate on first pass
+      if (passed) {
+        await supabase.from("certificates").upsert(
+          { user_id: user.id, course_id: courseId },
+          { onConflict: "user_id,course_id", ignoreDuplicates: true }
+        );
+      }
     }
 
     setResult({ score, passed, correct, total });
@@ -153,6 +175,8 @@ export default function ExamRunner({
     setAnswers({});
     setCurrent(0);
     setResult(null);
+    // Reload to trigger a fresh exam generation
+    location.reload();
   }
 
   /* ============ LOADING ============ */
@@ -226,18 +250,20 @@ export default function ExamRunner({
           {result.passed ? "You passed!" : "Not quite yet"}
         </h2>
         <p className="mt-3 text-slate-700 dark:text-[#cbd5e1]">
-          You scored <strong>{result.score}%</strong> ({result.correct}/
-          {result.total} correct). Passing score is {passingScore}%.
+          You scored <strong>{result.score}%</strong>. Passing score is{" "}
+          {passingScore}%.
         </p>
 
         <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:justify-center">
           {result.passed ? (
-            <Link
-              href={`/courses/${courseSlug}/certificate`}
-              className="rounded-full bg-emerald-600 px-7 py-3.5 font-bold text-white hover:bg-emerald-700"
-            >
-              🏆 View your certificate
-            </Link>
+            <>
+              <Link
+                href={`/courses/${courseSlug}/certificate`}
+                className="rounded-full bg-emerald-600 px-7 py-3.5 font-bold text-white hover:bg-emerald-700"
+              >
+                🏆 View your certificate
+              </Link>
+            </>
           ) : (
             <button
               onClick={retake}
