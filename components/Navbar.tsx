@@ -142,9 +142,6 @@ export default function Navbar() {
     setSearchOpen(false);
   }
 
-  const firstName =
-    profileName.split(" ")[0] || user?.email?.split("@")[0] || "you";
-
   return (
     <header
       className={`sticky top-0 z-40 border-b backdrop-blur-md transition-all duration-300 bg-white/85 dark:bg-[#0a0e1a]/85 ${
@@ -276,14 +273,23 @@ export default function Navbar() {
           </nav>
         )}
 
-        {/* MY LEARNING — logged in only */}
+        {/* PLAYGROUND + MY LEARNING — logged in only (desktop) */}
         {user && (
-          <Link
-            href="/dashboard"
-            className="hidden text-sm font-semibold text-slate-700 transition hover:text-blue-700 lg:inline dark:text-[#cbd5e1] dark:hover:text-blue-400"
-          >
-            My Learning
-          </Link>
+          <div className="hidden items-center gap-5 lg:flex">
+            <Link
+              href="/playground"
+              className="flex items-center gap-1.5 text-sm font-semibold text-slate-700 transition hover:text-blue-700 dark:text-[#cbd5e1] dark:hover:text-blue-400"
+            >
+              <span className="text-base">⌨️</span>
+              Playground
+            </Link>
+            <Link
+              href="/dashboard"
+              className="text-sm font-semibold text-slate-700 transition hover:text-blue-700 dark:text-[#cbd5e1] dark:hover:text-blue-400"
+            >
+              My Learning
+            </Link>
+          </div>
         )}
 
         {/* RIGHT SIDE */}
@@ -356,6 +362,14 @@ export default function Navbar() {
                         </Link>
                       )}
 
+                      <Link
+                        href="/playground"
+                        onClick={() => setUserMenuOpen(false)}
+                        className="flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-blue-50 hover:text-blue-700 lg:hidden dark:text-[#cbd5e1] dark:hover:bg-[#1b2742] dark:hover:text-blue-400"
+                      >
+                        <span className="text-base">⌨️</span> Playground
+                      </Link>
+
                       {[
                         { href: "/dashboard", icon: "📊", label: "Dashboard" },
                         { href: "/dashboard/progress", icon: "📈", label: "My progress" },
@@ -427,6 +441,27 @@ export default function Navbar() {
                 {l.label}
               </Link>
             ))}
+
+          {user && (
+            <>
+              <Link
+                href="/playground"
+                onClick={() => setMenuOpen(false)}
+                className="flex items-center gap-3 rounded-lg px-3 py-3 font-medium text-slate-700 transition hover:bg-blue-50 hover:text-blue-700 dark:text-[#cbd5e1] dark:hover:bg-[#1b2742] dark:hover:text-blue-400"
+              >
+                <span className="text-base">⌨️</span>
+                Playground
+              </Link>
+              <Link
+                href="/dashboard"
+                onClick={() => setMenuOpen(false)}
+                className="flex items-center gap-3 rounded-lg px-3 py-3 font-medium text-slate-700 transition hover:bg-blue-50 hover:text-blue-700 dark:text-[#cbd5e1] dark:hover:bg-[#1b2742] dark:hover:text-blue-400"
+              >
+                <span className="text-base">📊</span>
+                My Learning
+              </Link>
+            </>
+          )}
 
           <div className="mt-4 border-t border-slate-100 pt-4 dark:border-[#1f2a44]">
             {user ? (
