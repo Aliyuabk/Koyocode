@@ -32,7 +32,7 @@ export default function ExamRunner({
   const supabase = createClient();
   const router = useRouter();
 
-  // ⬇️ If the student already passed, we skip generation entirely
+  // If they already passed, skip generation entirely
   const [hasPassed] = useState(previousAttempt?.passed === true);
 
   const [questions, setQuestions] = useState<Question[]>([]);
@@ -60,9 +60,9 @@ export default function ExamRunner({
       : null
   );
 
-  /* ============ GENERATE ON MOUNT (only if not passed) ============ */
+  /* ============ GENERATE ON MOUNT ============ */
   useEffect(() => {
-    if (hasPassed) return; // skip if already passed
+    if (hasPassed) return;
 
     let cancelled = false;
 
@@ -175,7 +175,6 @@ export default function ExamRunner({
     setAnswers({});
     setCurrent(0);
     setResult(null);
-    // Reload to trigger a fresh exam generation
     location.reload();
   }
 
@@ -256,14 +255,12 @@ export default function ExamRunner({
 
         <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:justify-center">
           {result.passed ? (
-            <>
-              <Link
-                href={`/courses/${courseSlug}/certificate`}
-                className="rounded-full bg-emerald-600 px-7 py-3.5 font-bold text-white hover:bg-emerald-700"
-              >
-                🏆 View your certificate
-              </Link>
-            </>
+            <Link
+              href={`/courses/${courseSlug}/certificate`}
+              className="rounded-full bg-emerald-600 px-7 py-3.5 font-bold text-white hover:bg-emerald-700"
+            >
+              🏆 View your certificate
+            </Link>
           ) : (
             <button
               onClick={retake}
