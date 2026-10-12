@@ -1,16 +1,18 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { signup, type ActionState } from "../actions";
 import Input from "@/components/ui/Input";
 import Button from "@/components/ui/Button";
 import Alert from "@/components/ui/Alert";
+import PasswordStrength from "@/components/ui/PasswordStrength";
 import { MailIcon, LockIcon, UserIcon } from "@/components/ui/Icons";
 import ThemeSwitcher from "@/components/ThemeSwitcher";
 
 export default function SignupPage() {
   const [state, formAction] = useActionState<ActionState, FormData>(signup, null);
+  const [password, setPassword] = useState("");
 
   return (
     <div className="relative flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-50 via-blue-50/40 to-white px-5 py-10 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950">
@@ -19,20 +21,20 @@ export default function SignupPage() {
       </div>
 
       <div className="w-full max-w-md animate-fade-up">
-        <div className="rounded-3xl border border-slate-200 bg-white p-8 shadow-2xl shadow-blue-900/5 sm:p-10 dark:border-slate-800 dark:bg-slate-900 dark:shadow-blue-950/30">
+        <div className="rounded-3xl border border-slate-200 bg-white p-8 shadow-2xl shadow-blue-900/5 sm:p-10 dark:border-[#1f2a44] dark:bg-[#131c33] dark:shadow-black/40">
           <Link href="/" className="mb-8 inline-flex items-center gap-2.5">
             <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-700 text-xl font-black text-white shadow-lg shadow-blue-700/25 dark:bg-blue-600">
               K
             </span>
-            <span className="text-xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100">
+            <span className="text-xl font-extrabold tracking-tight text-slate-900 dark:text-[#f1f5f9]">
               Koyo<span className="text-blue-600 dark:text-blue-400">Code</span>
             </span>
           </Link>
 
-          <h1 className="text-2xl font-black tracking-tight text-slate-900 sm:text-3xl dark:text-slate-100">
+          <h1 className="text-2xl font-black tracking-tight text-slate-900 sm:text-3xl dark:text-[#f1f5f9]">
             Create your free account.
           </h1>
-          <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
+          <p className="mt-2 text-sm text-slate-600 dark:text-[#94a3b8]">
             Start learning to code in Hausa and English.
           </p>
 
@@ -70,31 +72,42 @@ export default function SignupPage() {
               icon={<MailIcon />}
             />
 
-            <Input
-              id="password"
-              name="password"
-              type="password"
-              label="Password"
-              placeholder="At least 6 characters"
-              autoComplete="new-password"
-              required
-              minLength={6}
-              icon={<LockIcon />}
-            />
+            <div>
+              <Input
+                id="password"
+                name="password"
+                type="password"
+                label="Password"
+                placeholder="At least 8 characters"
+                autoComplete="new-password"
+                required
+                minLength={8}
+                icon={<LockIcon />}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+              <PasswordStrength value={password} />
+            </div>
 
-            <label className="flex items-start gap-2.5 pt-1 text-sm text-slate-600 dark:text-slate-400">
+            <label className="flex items-start gap-2.5 pt-1 text-sm text-slate-600 dark:text-[#94a3b8]">
               <input
                 type="checkbox"
                 required
-                className="mt-0.5 h-4 w-4 rounded border-slate-300 text-blue-700 focus:ring-blue-500 dark:border-slate-600 dark:bg-slate-800"
+                className="mt-0.5 h-4 w-4 rounded border-slate-300 text-blue-700 focus:ring-blue-500 dark:border-[#1f2a44] dark:bg-[#0e1526]"
               />
               <span>
                 I agree to the{" "}
-                <Link href="/terms" className="font-semibold text-blue-700 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300">
+                <Link
+                  href="/terms"
+                  className="font-semibold text-blue-700 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300"
+                >
                   Terms
                 </Link>{" "}
                 and{" "}
-                <Link href="/privacy" className="font-semibold text-blue-700 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300">
+                <Link
+                  href="/privacy"
+                  className="font-semibold text-blue-700 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300"
+                >
                   Privacy Policy
                 </Link>
                 .
@@ -107,22 +120,22 @@ export default function SignupPage() {
           </form>
 
           <div className="my-7 flex items-center gap-3">
-            <span className="h-px flex-1 bg-slate-200 dark:bg-slate-700" />
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+            <span className="h-px flex-1 bg-slate-200 dark:bg-[#1f2a44]" />
+            <span className="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-[#64748b]">
               Already have an account?
             </span>
-            <span className="h-px flex-1 bg-slate-200 dark:bg-slate-700" />
+            <span className="h-px flex-1 bg-slate-200 dark:bg-[#1f2a44]" />
           </div>
 
           <Link
             href="/login"
-            className="block w-full rounded-xl border border-slate-200 bg-white py-3.5 text-center text-sm font-bold text-slate-700 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:border-blue-600 dark:hover:bg-slate-700 dark:hover:text-blue-400"
+            className="block w-full rounded-xl border border-slate-200 bg-white py-3.5 text-center text-sm font-bold text-slate-700 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 dark:border-[#1f2a44] dark:bg-[#0e1526] dark:text-[#cbd5e1] dark:hover:border-blue-600 dark:hover:bg-[#1b2742] dark:hover:text-blue-400"
           >
             Log in instead
           </Link>
         </div>
 
-        <p className="mt-6 text-center text-xs text-slate-500 dark:text-slate-400">
+        <p className="mt-6 text-center text-xs text-slate-500 dark:text-[#94a3b8]">
           Free forever. No credit card required.
         </p>
       </div>

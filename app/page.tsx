@@ -1,3 +1,4 @@
+import YouTubeSubscribe from "@/components/YouTubeSubscribe";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import CourseGrid from "@/components/CourseGrid";
@@ -15,7 +16,6 @@ export default async function Home() {
       <main>
         {/* ==================== HERO ==================== */}
         <section id="home" className="relative overflow-hidden">
-          {/* soft glow */}
           <div className="pointer-events-none absolute -right-24 -top-24 h-80 w-80 rounded-full bg-blue-100/40 blur-3xl dark:bg-blue-900/20" />
           <div className="pointer-events-none absolute -bottom-20 left-0 h-72 w-72 rounded-full bg-sky-100/40 blur-3xl dark:bg-sky-900/15" />
 
@@ -69,7 +69,6 @@ export default async function Home() {
               </div>
             </Reveal>
 
-            {/* CODE MOCKUP */}
             <Reveal delay={0.15}>
               <div className="relative mx-auto w-full max-w-xl">
                 <div className="absolute -inset-5 rounded-[2rem] bg-blue-100/60 blur-2xl dark:bg-blue-900/20" />
@@ -306,6 +305,15 @@ export default async function Home() {
                   </a>
                 </div>
               </div>
+            </Reveal>
+          </div>
+        </section>
+
+        {/* ==================== YOUTUBE ==================== */}
+        <section className="px-5 py-12 sm:px-8">
+          <div className="mx-auto max-w-5xl">
+            <Reveal>
+              <YouTubeSubscribe />
             </Reveal>
           </div>
         </section>

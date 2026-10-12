@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import ProVideoPlayer from "@/components/ProVideoPlayer";
+import YouTubeSubscribe from "@/components/YouTubeSubscribe";
 import { createClient } from "@/lib/supabase/server";
 import {
   getCourseBySlug,
@@ -51,7 +52,6 @@ export default async function LessonPage({
 
   const initialPercent = progress?.watched_percent ?? 0;
 
-  // Popup questions for this lesson
   const { data: questions } = await supabase
     .from("lesson_questions")
     .select("*")
@@ -92,23 +92,14 @@ export default async function LessonPage({
 
   const thisCompleted = progressMap[lesson.id]?.completed ?? false;
 
-  const chapters: { time: number; title: string }[] = Array.isArray(
-    lesson.chapters
-  )
-    ? (lesson.chapters as any)
-    : [];
-  const resources: { name: string; url: string }[] = Array.isArray(
-    lesson.resources
-  )
-    ? (lesson.resources as any)
-    : [];
+  const chapters = lesson.chapters ?? [];
+  const resources = lesson.resources ?? [];
 
   return (
     <>
       <Navbar />
 
       <main className="mx-auto w-full max-w-7xl flex-1 px-5 py-8 sm:px-8 sm:py-10">
-        {/* BREADCRUMB */}
         <div className="flex flex-wrap items-center gap-2 text-sm text-slate-600 dark:text-[#94a3b8]">
           <Link
             href={`/courses/${course.slug}`}
@@ -121,7 +112,6 @@ export default async function LessonPage({
         </div>
 
         <div className="mt-6 grid gap-8 lg:grid-cols-3">
-          {/* ==================== MAIN ==================== */}
           <div className="space-y-6 lg:col-span-2">
             {lesson.youtube_id ? (
               <ProVideoPlayer
@@ -197,6 +187,21 @@ export default async function LessonPage({
               )}
             </div>
 
+            {/* YOUTUBE SUBSCRIBE */}
+            <div className="rounded-2xl border border-red-100 bg-red-50/50 p-4 dark:border-red-900/40 dark:bg-red-950/20">
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                <div>
+                  <p className="text-xs font-extrabold uppercase tracking-wider text-red-600 dark:text-red-400">
+                    Found this helpful?
+                  </p>
+                  <p className="mt-1 text-sm font-bold text-slate-900 dark:text-[#f1f5f9]">
+                    Subscribe on YouTube for more lessons
+                  </p>
+                </div>
+                <YouTubeSubscribe variant="compact" />
+              </div>
+            </div>
+
             {/* PREV / NEXT */}
             <div className="flex flex-wrap items-center justify-between gap-4">
               {prevLesson ? (
@@ -234,10 +239,9 @@ export default async function LessonPage({
             </div>
           </div>
 
-          {/* ==================== SIDEBAR ==================== */}
+          {/* SIDEBAR */}
           <aside className="lg:col-span-1">
             <div className="sticky top-24 space-y-4">
-              {/* COURSE PROGRESS */}
               <div className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-[#1f2a44] dark:bg-[#131c33]">
                 <div className="flex items-end justify-between">
                   <p className="text-xs font-extrabold uppercase tracking-wider text-blue-700 dark:text-blue-400">
@@ -258,7 +262,6 @@ export default async function LessonPage({
                 </p>
               </div>
 
-              {/* LESSON LIST */}
               <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white dark:border-[#1f2a44] dark:bg-[#131c33]">
                 <p className="border-b border-slate-100 px-5 py-4 text-sm font-extrabold text-slate-900 dark:border-[#1f2a44] dark:text-[#f1f5f9]">
                   Course content

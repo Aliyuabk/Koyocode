@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Navbar from "@/components/Navbar";
 import Avatar from "@/components/ui/Avatar";
+import YouTubeSubscribe from "@/components/YouTubeSubscribe";
 
 export default async function DashboardPage() {
   const supabase = await createClient();
@@ -353,6 +354,8 @@ export default async function DashboardPage() {
                 Manage account →
               </Link>
             </div>
+
+            <YouTubeSubscribe />
           </div>
         </section>
 

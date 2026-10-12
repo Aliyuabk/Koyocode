@@ -3,6 +3,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
+import { isStrongEnough } from "@/lib/password";
 
 export type ActionState = { error?: string; success?: string } | null;
 export type ProfileState = { error?: string; success?: string } | null;
@@ -44,7 +45,7 @@ export async function login(
 
   revalidatePath("/", "layout");
 
-  // Priority: explicit ?next= > admin default > student default
+  // Priority: ?next= > admin default > student default
   if (nextParam.startsWith("/")) {
     redirect(nextParam);
   }
@@ -66,8 +67,14 @@ export async function signup(
   if (!full_name || !email || !password) {
     return { error: "Please fill in all fields." };
   }
-  if (password.length < 6) {
-    return { error: "Password must be at least 6 characters." };
+  if (full_name.length < 2) {
+    return { error: "Full name must be at least 2 characters." };
+  }
+  if (!isStrongEnough(password)) {
+    return {
+      error:
+        "Password must be at least 8 characters and include an uppercase letter, a lowercase letter, and a number.",
+    };
   }
 
   const supabase = await createClient();
@@ -91,6 +98,68 @@ export async function logout() {
   await supabase.auth.signOut();
   revalidatePath("/", "layout");
   redirect("/");
+}
+
+/* ============================================================
+   FORGOT PASSWORD — send the reset link
+   ============================================================ */
+export async function forgotPassword(
+  _prev: ActionState,
+  formData: FormData
+): Promise<ActionState> {
+  const email = String(formData.get("email") ?? "").trim();
+
+  if (!email) {
+    return { error: "Please enter your email address." };
+  }
+
+  const supabase = await createClient();
+
+  const siteUrl =
+    process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+
+  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: `${siteUrl}/reset-password`,
+  });
+
+  if (error) {
+    return { error: error.message };
+  }
+
+  // Always show the same message — don't leak whether an email exists
+  return {
+    success:
+      "If an account exists with that email, we've sent a password reset link. Check your inbox (and spam folder).",
+  };
+}
+
+/* ============================================================
+   RESET PASSWORD — apply the new password
+   ============================================================ */
+export async function resetPassword(
+  _prev: ActionState,
+  formData: FormData
+): Promise<ActionState> {
+  const password = String(formData.get("password") ?? "");
+  const confirm = String(formData.get("confirm") ?? "");
+
+  if (!isStrongEnough(password)) {
+    return {
+      error:
+        "Password must be at least 8 characters and include an uppercase letter, a lowercase letter, and a number.",
+    };
+  }
+  if (password !== confirm) {
+    return { error: "Passwords do not match." };
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase.auth.updateUser({ password });
+
+  if (error) return { error: error.message };
+
+  revalidatePath("/", "layout");
+  redirect("/dashboard");
 }
 
 /* ============================================================
