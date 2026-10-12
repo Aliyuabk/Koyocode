@@ -25,31 +25,80 @@ export default async function AdminOverview() {
       .eq("passed", true),
   ]);
 
-  // Recent activity
-  const { data: recent } = await supabase
-    .from("activity_log")
-    .select("id, action, entity_type, metadata, created_at, user_id")
-    .order("created_at", { ascending: false })
-    .limit(10);
-
-  // Recent signups
-  const { data: recentUsers } = await supabase
-    .from("profiles")
-    .select("id, full_name, avatar_url, role, created_at")
-    .order("created_at", { ascending: false })
-    .limit(5);
-
   const passRate = examAttemptCount
     ? Math.round(((passedCount ?? 0) / examAttemptCount) * 100)
     : 0;
 
+  // Last 7 days signups
+  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+  const { count: signupsLast7 } = await supabase
+    .from("profiles")
+    .select("*", { count: "exact", head: true })
+    .gte("created_at", sevenDaysAgo);
+
+  // Recent activity
+  const { data: recent } = await supabase
+    .from("activity_log")
+    .select("id, action, entity_type, created_at, user_id")
+    .order("created_at", { ascending: false })
+    .limit(8);
+
+  const recentUserIds = Array.from(
+    new Set((recent ?? []).map((r) => r.user_id).filter(Boolean))
+  ) as string[];
+  const { data: recentProfiles } = recentUserIds.length
+    ? await supabase.from("profiles").select("id, full_name").in("id", recentUserIds)
+    : { data: [] };
+  const recentNames = Object.fromEntries(
+    (recentProfiles ?? []).map((p) => [p.id, p.full_name])
+  );
+
+  // New users
+  const { data: recentUsers } = await supabase
+    .from("profiles")
+    .select("id, full_name, role, created_at")
+    .order("created_at", { ascending: false })
+    .limit(5);
+
+  // Top courses by enrollments
+  const { data: topEnrollments } = await supabase
+    .from("enrollments")
+    .select("course_id");
+
+  const enrollmentByCourse: Record<string, number> = {};
+  (topEnrollments ?? []).forEach((e) => {
+    enrollmentByCourse[e.course_id] =
+      (enrollmentByCourse[e.course_id] ?? 0) + 1;
+  });
+
+  const topCourseIds = Object.entries(enrollmentByCourse)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5)
+    .map(([id]) => id);
+
+  const { data: topCoursesData } = topCourseIds.length
+    ? await supabase
+        .from("courses")
+        .select("id, title, icon")
+        .in("id", topCourseIds)
+    : { data: [] };
+
+  const topCourses = (topCoursesData ?? [])
+    .map((c) => ({
+      ...c,
+      count: enrollmentByCourse[c.id] ?? 0,
+    }))
+    .sort((a, b) => b.count - a.count);
+
+  const maxEnrollments = Math.max(1, ...topCourses.map((c) => c.count));
+
   const stats = [
-    { label: "Users", value: userCount ?? 0, icon: "👥", tone: "blue", href: "/admin/users" },
+    { label: "Total users", value: userCount ?? 0, icon: "👥", tone: "blue", href: "/admin/users", delta: `+${signupsLast7 ?? 0} this week` },
     { label: "Courses", value: courseCount ?? 0, icon: "📚", tone: "purple", href: "/admin/courses" },
     { label: "Lessons", value: lessonCount ?? 0, icon: "🎬", tone: "emerald", href: "/admin/lessons" },
     { label: "Enrollments", value: enrollmentCount ?? 0, icon: "✍️", tone: "amber", href: "/admin/enrollments" },
     { label: "Certificates", value: certCount ?? 0, icon: "🏆", tone: "purple", href: "/admin/certificates" },
-    { label: "Exam attempts", value: examAttemptCount ?? 0, icon: "🎯", tone: "blue", href: "/admin/exams" },
+    { label: "Exams", value: examAttemptCount ?? 0, icon: "🎯", tone: "blue", href: "/admin/exams" },
     { label: "Pass rate", value: `${passRate}%`, icon: "✅", tone: "emerald", href: "/admin/exams" },
   ];
 
@@ -87,6 +136,11 @@ export default async function AdminOverview() {
                 <p className="mt-2 text-3xl font-black text-slate-900 dark:text-[#f1f5f9]">
                   {s.value}
                 </p>
+                {s.delta && (
+                  <p className="mt-1 text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
+                    {s.delta}
+                  </p>
+                )}
               </div>
               <span className={`flex h-11 w-11 items-center justify-center rounded-xl text-xl ${toneClass[s.tone]}`}>
                 {s.icon}
@@ -96,9 +150,51 @@ export default async function AdminOverview() {
         ))}
       </div>
 
-      {/* TWO COLUMNS */}
+      {/* TOP COURSES + RECENT ACTIVITY */}
       <div className="grid gap-6 lg:grid-cols-2">
-        {/* RECENT ACTIVITY */}
+        <div className="rounded-2xl border border-slate-200 bg-white dark:border-[#1f2a44] dark:bg-[#131c33]">
+          <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4 dark:border-[#1f2a44]">
+            <p className="text-sm font-extrabold text-slate-900 dark:text-[#f1f5f9]">
+              Top courses by enrollment
+            </p>
+            <Link
+              href="/admin/courses"
+              className="text-xs font-bold text-purple-700 hover:text-purple-900 dark:text-purple-400"
+            >
+              View all →
+            </Link>
+          </div>
+          {topCourses.length === 0 ? (
+            <p className="px-5 py-8 text-center text-sm text-slate-500 dark:text-[#94a3b8]">
+              No enrollments yet.
+            </p>
+          ) : (
+            <ul className="divide-y divide-slate-100 dark:divide-[#1f2a44]">
+              {topCourses.map((c) => (
+                <li key={c.id} className="px-5 py-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <span className="text-xl">{c.icon}</span>
+                      <p className="truncate text-sm font-bold text-slate-900 dark:text-[#f1f5f9]">
+                        {c.title}
+                      </p>
+                    </div>
+                    <span className="shrink-0 text-sm font-black text-slate-700 dark:text-[#cbd5e1]">
+                      {c.count}
+                    </span>
+                  </div>
+                  <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-[#0e1526]">
+                    <div
+                      className="h-full rounded-full bg-purple-600 dark:bg-purple-500"
+                      style={{ width: `${(c.count / maxEnrollments) * 100}%` }}
+                    />
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
         <div className="rounded-2xl border border-slate-200 bg-white dark:border-[#1f2a44] dark:bg-[#131c33]">
           <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4 dark:border-[#1f2a44]">
             <p className="text-sm font-extrabold text-slate-900 dark:text-[#f1f5f9]">
@@ -129,7 +225,10 @@ export default async function AdminOverview() {
                   </span>
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-bold text-slate-900 dark:text-[#f1f5f9]">
-                      {r.action.replace(/_/g, " ")}
+                      {r.user_id ? recentNames[r.user_id] ?? "User" : "System"}{" "}
+                      <span className="font-normal text-slate-500 dark:text-[#94a3b8]">
+                        · {r.action.replace(/_/g, " ")}
+                      </span>
                     </p>
                     <p className="truncate text-xs text-slate-500 dark:text-[#94a3b8]">
                       {new Date(r.created_at).toLocaleString()}
@@ -140,54 +239,54 @@ export default async function AdminOverview() {
             </ul>
           )}
         </div>
+      </div>
 
-        {/* RECENT SIGNUPS */}
-        <div className="rounded-2xl border border-slate-200 bg-white dark:border-[#1f2a44] dark:bg-[#131c33]">
-          <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4 dark:border-[#1f2a44]">
-            <p className="text-sm font-extrabold text-slate-900 dark:text-[#f1f5f9]">
-              Newest users
-            </p>
-            <Link
-              href="/admin/users"
-              className="text-xs font-bold text-purple-700 hover:text-purple-900 dark:text-purple-400"
-            >
-              View all →
-            </Link>
-          </div>
-          {!recentUsers || recentUsers.length === 0 ? (
-            <p className="px-5 py-8 text-center text-sm text-slate-500 dark:text-[#94a3b8]">
-              No users yet.
-            </p>
-          ) : (
-            <ul className="divide-y divide-slate-100 dark:divide-[#1f2a44]">
-              {recentUsers.map((u) => (
-                <li key={u.id} className="flex items-center gap-3 px-5 py-3">
-                  <span className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-blue-600 to-blue-800 text-xs font-black text-white">
-                    {(u.full_name ?? "U")
-                      .split(" ")
-                      .map((s: any[]) => s[0])
-                      .join("")
-                      .slice(0, 2)
-                      .toUpperCase()}
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-bold text-slate-900 dark:text-[#f1f5f9]">
-                      {u.full_name || "Unnamed"}
-                    </p>
-                    <p className="truncate text-xs text-slate-500 dark:text-[#94a3b8]">
-                      {new Date(u.created_at).toLocaleDateString()}
-                    </p>
-                  </div>
-                  {u.role === "admin" && (
-                    <span className="rounded-full bg-purple-100 px-2.5 py-0.5 text-[10px] font-black uppercase text-purple-700 dark:bg-purple-950/60 dark:text-purple-300">
-                      admin
-                    </span>
-                  )}
-                </li>
-              ))}
-            </ul>
-          )}
+      {/* RECENT SIGNUPS */}
+      <div className="rounded-2xl border border-slate-200 bg-white dark:border-[#1f2a44] dark:bg-[#131c33]">
+        <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4 dark:border-[#1f2a44]">
+          <p className="text-sm font-extrabold text-slate-900 dark:text-[#f1f5f9]">
+            Newest users
+          </p>
+          <Link
+            href="/admin/users"
+            className="text-xs font-bold text-purple-700 hover:text-purple-900 dark:text-purple-400"
+          >
+            View all →
+          </Link>
         </div>
+        {!recentUsers || recentUsers.length === 0 ? (
+          <p className="px-5 py-8 text-center text-sm text-slate-500 dark:text-[#94a3b8]">
+            No users yet.
+          </p>
+        ) : (
+          <ul className="divide-y divide-slate-100 dark:divide-[#1f2a44]">
+            {recentUsers.map((u) => (
+              <li key={u.id} className="flex items-center gap-3 px-5 py-3">
+                <span className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-blue-600 to-blue-800 text-xs font-black text-white">
+                  {(u.full_name ?? "U")
+                    .split(" ")
+                    .map((s) => s[0])
+                    .join("")
+                    .slice(0, 2)
+                    .toUpperCase()}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-bold text-slate-900 dark:text-[#f1f5f9]">
+                    {u.full_name || "Unnamed"}
+                  </p>
+                  <p className="truncate text-xs text-slate-500 dark:text-[#94a3b8]">
+                    {new Date(u.created_at).toLocaleDateString()}
+                  </p>
+                </div>
+                {u.role === "admin" && (
+                  <span className="rounded-full bg-purple-100 px-2.5 py-0.5 text-[10px] font-black uppercase text-purple-700 dark:bg-purple-950/60 dark:text-purple-300">
+                    admin
+                  </span>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
 
       {/* QUICK ACTIONS */}

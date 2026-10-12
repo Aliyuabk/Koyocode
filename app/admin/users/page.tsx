@@ -9,10 +9,17 @@ export default async function AdminUsersPage() {
     .select("id, full_name, avatar_url, role, created_at")
     .order("created_at", { ascending: false });
 
-  const { data: enrollments } = await supabase.from("enrollments").select("user_id");
+  const { data: enrollments } = await supabase
+    .from("enrollments")
+    .select("user_id");
+
   const { data: progress } = await supabase
     .from("progress")
     .select("user_id, completed");
+
+  const { data: certs } = await supabase
+    .from("certificates")
+    .select("user_id");
 
   const enrollCount: Record<string, number> = {};
   (enrollments ?? []).forEach((e) => {
@@ -25,6 +32,11 @@ export default async function AdminUsersPage() {
       completedCount[p.user_id] = (completedCount[p.user_id] ?? 0) + 1;
   });
 
+  const certCount: Record<string, number> = {};
+  (certs ?? []).forEach((c) => {
+    certCount[c.user_id] = (certCount[c.user_id] ?? 0) + 1;
+  });
+
   const rows = (users ?? []).map((u) => ({
     id: u.id,
     full_name: u.full_name,
@@ -33,6 +45,7 @@ export default async function AdminUsersPage() {
     created_at: u.created_at,
     enrollments: enrollCount[u.id] ?? 0,
     completed: completedCount[u.id] ?? 0,
+    certificates: certCount[u.id] ?? 0,
   }));
 
   return <UsersManager rows={rows} />;

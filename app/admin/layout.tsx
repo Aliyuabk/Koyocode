@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import AdminSidebar from "@/components/admin/AdminSidebar";
 import AdminTopbar from "@/components/admin/AdminTopbar";
+import { ToastHost } from "@/components/admin/ui";
 
 export default async function AdminLayout({
   children,
@@ -39,6 +40,7 @@ export default async function AdminLayout({
           {children}
         </main>
       </div>
+      <ToastHost />
     </div>
   );
 }

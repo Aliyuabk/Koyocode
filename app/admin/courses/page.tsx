@@ -13,7 +13,9 @@ export default async function AdminCoursesPage() {
     .from("course_exam_settings")
     .select("course_id, passing_score, is_enabled");
 
-  const sMap = Object.fromEntries((settings ?? []).map((s) => [s.course_id, s]));
+  const settingsMap = Object.fromEntries(
+    (settings ?? []).map((s) => [s.course_id, s])
+  );
 
-  return <CoursesManager courses={courses ?? []} settingsMap={sMap} />;
+  return <CoursesManager courses={courses ?? []} settingsMap={settingsMap} />;
 }
