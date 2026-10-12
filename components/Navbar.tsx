@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import type { User } from "@supabase/supabase-js";
 import Avatar from "@/components/ui/Avatar";
 import ThemeSwitcher from "@/components/ThemeSwitcher";
+import NotificationBell from "@/components/NotificationBell";
 
 type SearchResult = {
   id: string;
@@ -273,7 +274,7 @@ export default function Navbar() {
           </nav>
         )}
 
-        {/* PLAYGROUND + MY LEARNING — logged in only (desktop) */}
+        {/* PLAYGROUND + MY LEARNING — logged in only */}
         {user && (
           <div className="hidden items-center gap-5 lg:flex">
             <Link
@@ -298,25 +299,9 @@ export default function Navbar() {
 
           {user ? (
             <>
-              <button
-                type="button"
-                aria-label="Notifications"
-                className="hidden h-9 w-9 items-center justify-center rounded-full text-slate-500 transition hover:bg-slate-100 hover:text-slate-700 sm:flex dark:text-[#94a3b8] dark:hover:bg-[#1b2742] dark:hover:text-[#f1f5f9]"
-              >
-                <svg
-                  width="19"
-                  height="19"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
-                  <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
-                </svg>
-              </button>
+              <div className="hidden sm:block">
+                <NotificationBell />
+              </div>
 
               <div className="relative" ref={userMenuRef}>
                 <button
@@ -324,7 +309,12 @@ export default function Navbar() {
                   aria-expanded={userMenuOpen}
                   className="flex items-center gap-2 rounded-full border border-slate-200 bg-white p-1 pr-3 transition hover:border-blue-200 hover:bg-blue-50 dark:border-[#1f2a44] dark:bg-[#0e1526] dark:hover:border-blue-600 dark:hover:bg-[#1b2742]"
                 >
-                  <Avatar src={profileAvatar} name={profileName} email={user.email} size="sm" />
+                  <Avatar
+                    src={profileAvatar}
+                    name={profileName}
+                    email={user.email}
+                    size="sm"
+                  />
                   <svg
                     className={`h-3 w-3 text-slate-500 transition-transform dark:text-[#94a3b8] ${
                       userMenuOpen ? "rotate-180" : ""
@@ -374,6 +364,7 @@ export default function Navbar() {
                         { href: "/dashboard", icon: "📊", label: "Dashboard" },
                         { href: "/dashboard/progress", icon: "📈", label: "My progress" },
                         { href: "/dashboard/certificates", icon: "🏆", label: "Certificates" },
+                        { href: "/dashboard/notifications", icon: "🔔", label: "Notifications" },
                         { href: "/dashboard/settings", icon: "⚙️", label: "Settings" },
                       ].map((item) => (
                         <Link
@@ -460,6 +451,14 @@ export default function Navbar() {
                 <span className="text-base">📊</span>
                 My Learning
               </Link>
+              <Link
+                href="/dashboard/notifications"
+                onClick={() => setMenuOpen(false)}
+                className="flex items-center gap-3 rounded-lg px-3 py-3 font-medium text-slate-700 transition hover:bg-blue-50 hover:text-blue-700 dark:text-[#cbd5e1] dark:hover:bg-[#1b2742] dark:hover:text-blue-400"
+              >
+                <span className="text-base">🔔</span>
+                Notifications
+              </Link>
             </>
           )}
 
@@ -467,7 +466,12 @@ export default function Navbar() {
             {user ? (
               <>
                 <div className="mb-3 flex items-center gap-3 rounded-xl bg-blue-50 px-4 py-3 dark:bg-[#16233d]">
-                  <Avatar src={profileAvatar} name={profileName} email={user.email} size="md" />
+                  <Avatar
+                    src={profileAvatar}
+                    name={profileName}
+                    email={user.email}
+                    size="md"
+                  />
                   <div className="min-w-0">
                     <p className="truncate text-sm font-bold text-slate-900 dark:text-[#f1f5f9]">
                       {profileName || "Learner"}
