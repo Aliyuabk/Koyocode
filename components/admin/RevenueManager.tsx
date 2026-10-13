@@ -66,51 +66,88 @@ export default function RevenueManager({
   const supabase = createClient();
   const router = useRouter();
 
-  const [tab, setTab] = useState<"overview" | "payments" | "certificates" | "courses" | "ads" | "keys">("overview");
+  const [tab, setTab] = useState<
+    "overview" | "payments" | "certificates" | "courses" | "ads" | "keys"
+  >("overview");
+
   const [form, setForm] = useState<Settings>(settings);
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [saveOk, setSaveOk] = useState(false);
+
   const [search, setSearch] = useState("");
-  const [filterType, setFilterType] = useState<"all" | "certificate" | "course">("all");
-  const [filterStatus, setFilterStatus] = useState<"all" | "success" | "pending" | "failed">("all");
+  const [filterType, setFilterType] = useState<
+    "all" | "certificate" | "course"
+  >("all");
+  const [filterStatus, setFilterStatus] = useState<
+    "all" | "success" | "pending" | "failed"
+  >("all");
 
   function update<K extends keyof Settings>(key: K, value: Settings[K]) {
     setForm((f) => ({ ...f, [key]: value }));
+    // Clear any previous save state on edit
+    setSaveError(null);
+    setSaveOk(false);
   }
 
   async function save() {
     setSaving(true);
-    const { error } = await supabase
+    setSaveError(null);
+    setSaveOk(false);
+
+    // Prepare payload — only the fields the admin can edit
+    const payload = {
+      payments_enabled: form.payments_enabled,
+      paystack_public_key: form.paystack_public_key?.trim() || null,
+      currency: form.currency,
+      certificate_enabled: form.certificate_enabled,
+      certificate_default_price_kobo: form.certificate_default_price_kobo,
+      certificate_require_payment: form.certificate_require_payment,
+      certificate_auto_issue_on_pass: form.certificate_auto_issue_on_pass,
+      premium_courses_enabled: form.premium_courses_enabled,
+      premium_default_preview_lessons: form.premium_default_preview_lessons,
+      ads_enabled: form.ads_enabled,
+      ads_provider: form.ads_provider,
+      ads_client_id: form.ads_client_id?.trim() || null,
+      ads_slots: form.ads_slots,
+      ads_skip_for_admins: form.ads_skip_for_admins,
+      ads_skip_on_exam: form.ads_skip_on_exam,
+      ads_skip_on_checkout: form.ads_skip_on_checkout,
+    };
+
+    const { data, error } = await supabase
       .from("platform_settings")
-      .update({
-        payments_enabled: form.payments_enabled,
-        paystack_public_key: form.paystack_public_key,
-        currency: form.currency,
-        certificate_enabled: form.certificate_enabled,
-        certificate_default_price_kobo: form.certificate_default_price_kobo,
-        certificate_require_payment: form.certificate_require_payment,
-        certificate_auto_issue_on_pass: form.certificate_auto_issue_on_pass,
-        premium_courses_enabled: form.premium_courses_enabled,
-        premium_default_preview_lessons: form.premium_default_preview_lessons,
-        ads_enabled: form.ads_enabled,
-        ads_provider: form.ads_provider,
-        ads_client_id: form.ads_client_id,
-        ads_slots: form.ads_slots,
-        ads_skip_for_admins: form.ads_skip_for_admins,
-        ads_skip_on_exam: form.ads_skip_on_exam,
-        ads_skip_on_checkout: form.ads_skip_on_checkout,
-      })
-      .eq("id", 1);
+      .update(payload)
+      .eq("id", 1)
+      .select("id")
+      .maybeSingle();
 
     setSaving(false);
-    if (error) return toast(error.message, "err");
+
+    if (error) {
+      console.error("Save error:", error);
+      setSaveError(error.message);
+      toast(error.message, "err");
+      return;
+    }
+
+    if (!data) {
+      // No error but no row returned — RLS blocked it silently
+      const msg =
+        "Save failed — RLS blocked the update. Check your admin role, or run the SQL fix on platform_settings.";
+      setSaveError(msg);
+      toast(msg, "err");
+      return;
+    }
+
+    setSaveOk(true);
     toast("Settings saved");
     router.refresh();
   }
 
   const filteredPayments = payments.filter((p) => {
-    const matchesSearch = (p.user_name ?? "")
-      .toLowerCase()
-      .includes(search.toLowerCase()) ||
+    const matchesSearch =
+      (p.user_name ?? "").toLowerCase().includes(search.toLowerCase()) ||
       p.reference.toLowerCase().includes(search.toLowerCase());
     const matchesType = filterType === "all" || p.type === filterType;
     const matchesStatus = filterStatus === "all" || p.status === filterStatus;
@@ -128,6 +165,18 @@ export default function RevenueManager({
           </Btn>
         }
       />
+
+      {/* SAVE STATUS */}
+      {saveError && (
+        <div className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-700 dark:border-red-800 dark:bg-red-950/40 dark:text-red-300">
+          ⚠ {saveError}
+        </div>
+      )}
+      {saveOk && (
+        <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300">
+          ✓ Settings saved successfully
+        </div>
+      )}
 
       {/* TABS */}
       <div className="mt-6 flex flex-wrap gap-1 border-b border-slate-200 dark:border-[#1f2a44]">
@@ -189,10 +238,13 @@ export default function RevenueManager({
               },
             ].map((s) => {
               const tones = {
-                emerald: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300",
+                emerald:
+                  "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300",
                 blue: "bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300",
-                purple: "bg-purple-100 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300",
-                amber: "bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300",
+                purple:
+                  "bg-purple-100 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300",
+                amber:
+                  "bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300",
               }[s.tone];
               return (
                 <div
@@ -218,7 +270,6 @@ export default function RevenueManager({
               );
             })}
 
-            {/* Master switches */}
             <div className="mt-4 sm:col-span-2 lg:col-span-4">
               <div className="rounded-2xl border border-slate-200 bg-white p-6 dark:border-[#1f2a44] dark:bg-[#131c33]">
                 <p className="text-xs font-extrabold uppercase tracking-wider text-purple-700 dark:text-purple-400">
@@ -229,7 +280,9 @@ export default function RevenueManager({
                     <input
                       type="checkbox"
                       checked={form.payments_enabled}
-                      onChange={(e) => update("payments_enabled", e.target.checked)}
+                      onChange={(e) =>
+                        update("payments_enabled", e.target.checked)
+                      }
                       className="h-4 w-4 rounded border-slate-300 text-purple-700"
                     />
                     <div>
@@ -343,12 +396,19 @@ export default function RevenueManager({
                     </thead>
                     <tbody className="divide-y divide-slate-100 dark:divide-[#1f2a44]">
                       {filteredPayments.map((p) => (
-                        <tr key={p.id} className="hover:bg-slate-50 dark:hover:bg-[#1b2742]">
+                        <tr
+                          key={p.id}
+                          className="hover:bg-slate-50 dark:hover:bg-[#1b2742]"
+                        >
                           <td className="px-5 py-3 font-bold dark:text-[#f1f5f9]">
                             {p.user_name ?? "Unnamed"}
                           </td>
                           <td className="px-5 py-3">
-                            <Badge tone={p.type === "certificate" ? "purple" : "blue"}>
+                            <Badge
+                              tone={
+                                p.type === "certificate" ? "purple" : "blue"
+                              }
+                            >
                               {p.type}
                             </Badge>
                           </td>
@@ -433,7 +493,10 @@ export default function RevenueManager({
                   type="checkbox"
                   checked={form.certificate_auto_issue_on_pass}
                   onChange={(e) =>
-                    update("certificate_auto_issue_on_pass", e.target.checked)
+                    update(
+                      "certificate_auto_issue_on_pass",
+                      e.target.checked
+                    )
                   }
                   className="h-4 w-4 rounded border-slate-300 text-purple-700"
                 />
@@ -442,7 +505,8 @@ export default function RevenueManager({
                     Auto-issue on exam pass
                   </p>
                   <p className="text-xs text-slate-500 dark:text-[#94a3b8]">
-                    If enabled, certificate is granted the moment exam is passed
+                    If enabled, certificate is granted the moment exam is
+                    passed
                   </p>
                 </div>
               </label>
@@ -626,13 +690,15 @@ export default function RevenueManager({
             <div className="mt-5 space-y-5">
               <Field
                 label="Paystack Public Key"
-                hint="Safe to display — used on the frontend"
+                hint="Safe to display — used on the frontend. Starts with pk_test_ or pk_live_"
               >
                 <input
                   className={inputCls}
                   value={form.paystack_public_key ?? ""}
-                  onChange={(e) => update("paystack_public_key", e.target.value)}
-                  placeholder="pk_test_..."
+                  onChange={(e) =>
+                    update("paystack_public_key", e.target.value)
+                  }
+                  placeholder="pk_test_xxxxxxxxxxxxxxxxxxxx"
                 />
               </Field>
 
@@ -641,10 +707,13 @@ export default function RevenueManager({
                   ⚠ Secret key
                 </p>
                 <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">
-                  The <code>PAYSTACK_SECRET_KEY</code> is stored in environment variables,
-                  never in the database. Add it to <code>.env.local</code> and Vercel:
+                  The <code>PAYSTACK_SECRET_KEY</code> is stored in environment
+                  variables, never in the database. Add it to{" "}
+                  <code>.env.local</code> and Vercel:
                   <br />
-                  <code className="mt-1 inline-block">PAYSTACK_SECRET_KEY=sk_test_...</code>
+                  <code className="mt-1 inline-block">
+                    PAYSTACK_SECRET_KEY=sk_test_...
+                  </code>
                 </p>
               </div>
 
@@ -659,6 +728,20 @@ export default function RevenueManager({
                   <option value="GHS">Ghanaian Cedi (GHS)</option>
                   <option value="KES">Kenyan Shilling (KES)</option>
                 </select>
+              </Field>
+
+              <Field
+                label="Support email"
+                hint="Shown to users on payment issues"
+              >
+                <input
+                  className={inputCls}
+                  value={form.paystack_public_key ?? ""}
+                  onChange={(e) =>
+                    update("paystack_public_key", e.target.value)
+                  }
+                  placeholder="aliyuabubakar11117@gmail.com"
+                />
               </Field>
             </div>
           </div>
