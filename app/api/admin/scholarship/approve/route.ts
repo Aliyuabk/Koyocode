@@ -155,7 +155,7 @@ export async function POST(req: Request) {
   }
 
   // ============================================================
-  // 7. Tag profile as scholarship + lock premium access
+  // 7. Tag profile as scholarship + lock access + force pw change
   // ============================================================
   if (userIsNew) {
     await admin
@@ -190,7 +190,7 @@ export async function POST(req: Request) {
     .eq("id", application_id);
 
   // ============================================================
-  // 9. Send welcome email via Gmail SMTP
+  // 9. Send welcome email
   // ============================================================
   let emailSent = false;
   let emailError: string | null = null;
@@ -238,7 +238,7 @@ export async function POST(req: Request) {
       console.error("[scholarship] email failed:", emailError);
     }
   } else if (!userIsNew) {
-    console.log("[scholarship] user already existed, skipping email");
+    console.log("[scholarship] user existed, skipping email");
   } else {
     console.warn(
       "[scholarship] GMAIL_USER or GMAIL_APP_PASSWORD not configured"
@@ -311,8 +311,6 @@ function buildWelcomeEmail({
     <tr>
       <td align="center">
         <table width="600" cellpadding="0" cellspacing="0" role="presentation" style="max-width:600px;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 8px 32px rgba(10,61,145,0.08);">
-
-          <!-- HEADER -->
           <tr>
             <td style="background:linear-gradient(135deg,#0A3D91 0%,#1E90FF 100%);padding:40px 40px 32px;text-align:center;">
               <table cellpadding="0" cellspacing="0" role="presentation" align="center">
@@ -331,7 +329,6 @@ function buildWelcomeEmail({
             </td>
           </tr>
 
-          <!-- BODY -->
           <tr>
             <td style="padding:40px;">
               <h2 style="margin:0 0 12px;color:#0f172a;font-size:24px;font-weight:800;">
@@ -339,7 +336,7 @@ function buildWelcomeEmail({
               </h2>
 
               <p style="margin:0 0 16px;color:#475569;font-size:15px;line-height:1.6;">
-                Your KoyoCode Scholarship application has been <strong style="color:#059669;">approved</strong>. We&apos;re excited to welcome you to the program.
+                Your KoyoCode Scholarship application has been <strong style="color:#059669;">approved</strong>. Welcome to the program.
               </p>
 
               <p style="margin:0 0 16px;color:#475569;font-size:15px;line-height:1.6;">
@@ -418,15 +415,6 @@ function buildWelcomeEmail({
                 </tr>
               </table>
 
-              <h3 style="margin:32px 0 12px;color:#0f172a;font-size:16px;font-weight:800;">
-                📋 What you committed to
-              </h3>
-              <ul style="margin:0 0 24px;padding-left:20px;color:#475569;font-size:14px;line-height:1.8;">
-                <li>Complete the course within 30 days</li>
-                <li>Fill in a short feedback form on completion</li>
-                <li>Write a 2-sentence testimonial if you&apos;d recommend it</li>
-              </ul>
-
               <p style="margin:0 0 16px;color:#475569;font-size:14px;line-height:1.6;">
                 If you have any questions, reply to this email — I read every reply personally.
               </p>
@@ -439,7 +427,6 @@ function buildWelcomeEmail({
             </td>
           </tr>
 
-          <!-- FOOTER -->
           <tr>
             <td style="padding:24px 40px;background:#f8fafc;border-top:1px solid #e2e8f0;text-align:center;">
               <p style="margin:0 0 8px;color:#475569;font-size:13px;font-weight:600;">
@@ -451,7 +438,6 @@ function buildWelcomeEmail({
               </p>
             </td>
           </tr>
-
         </table>
 
         <p style="margin:24px 0 0;color:#94a3b8;font-size:11px;line-height:1.6;text-align:center;">

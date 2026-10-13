@@ -19,12 +19,16 @@ export default async function DashboardPage() {
   const adsOn = settings.ads_enabled;
   const slots = settings.ads_slots ?? {};
 
+  // Profile (includes scholarship + password flags)
   const { data: profile } = await supabase
     .from("profiles")
-    .select("full_name, avatar_url, role, created_at")
+    .select(
+      "full_name, avatar_url, role, created_at, is_scholarship, scholarship_course_id, password_changed"
+    )
     .eq("id", user.id)
     .single();
 
+  // Progress
   const { data: progressRows } = await supabase
     .from("progress")
     .select(
@@ -34,6 +38,7 @@ export default async function DashboardPage() {
     .eq("user_id", user.id)
     .order("updated_at", { ascending: false });
 
+  // Recommended courses
   const { data: courses } = await supabase
     .from("courses")
     .select("*")
@@ -41,11 +46,30 @@ export default async function DashboardPage() {
     .order("sort_order")
     .limit(4);
 
+  // Certificate count
   const { count: certCount } = await supabase
     .from("certificates")
     .select("*", { count: "exact", head: true })
     .eq("user_id", user.id);
 
+  // Scholarship course (if any)
+  let scholarshipCourse: {
+    id: string;
+    title: string;
+    icon: string | null;
+    slug: string;
+  } | null = null;
+
+  if (profile?.is_scholarship && profile?.scholarship_course_id) {
+    const { data } = await supabase
+      .from("courses")
+      .select("id, title, icon, slug")
+      .eq("id", profile.scholarship_course_id)
+      .single();
+    scholarshipCourse = data ?? null;
+  }
+
+  // Stats
   const totalLessons = progressRows?.length ?? 0;
   const completedLessons =
     progressRows?.filter((p) => p.completed).length ?? 0;
@@ -56,6 +80,7 @@ export default async function DashboardPage() {
       )
     : 0;
 
+  // Streak
   const days = new Set(
     progressRows?.map((p) =>
       new Date(p.updated_at).toISOString().slice(0, 10)
@@ -73,6 +98,8 @@ export default async function DashboardPage() {
   const fullName = profile?.full_name?.trim() || "Learner";
   const firstName = fullName.split(" ")[0];
   const role = profile?.role ?? "student";
+  const isScholarship = profile?.is_scholarship ?? false;
+  const needsPasswordChange = profile?.password_changed === false;
 
   const memberSince = profile?.created_at
     ? new Date(profile.created_at).toLocaleDateString("en-GB", {
@@ -89,6 +116,63 @@ export default async function DashboardPage() {
       <Navbar />
 
       <main className="mx-auto w-full max-w-7xl flex-1 px-5 py-10 sm:px-8 sm:py-14">
+        {/* PASSWORD CHANGE BANNER */}
+        {needsPasswordChange && (
+          <section className="mb-6 animate-fade-up">
+            <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 dark:border-amber-800 dark:bg-amber-950/40">
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                <div className="flex items-start gap-3">
+                  <span className="text-2xl">🔒</span>
+                  <div>
+                    <p className="font-black text-amber-900 dark:text-amber-200">
+                      Change your temporary password
+                    </p>
+                    <p className="mt-1 text-sm text-amber-800 dark:text-amber-300">
+                      You&apos;re using the temporary password from your
+                      scholarship email. Please set your own password.
+                    </p>
+                  </div>
+                </div>
+                <Link
+                  href="/dashboard/change-password"
+                  className="inline-flex shrink-0 items-center gap-2 rounded-xl bg-amber-600 px-5 py-3 text-sm font-bold text-white shadow-lg shadow-amber-600/20 transition hover:bg-amber-700"
+                >
+                  Change password →
+                </Link>
+              </div>
+            </div>
+          </section>
+        )}
+
+        {/* SCHOLARSHIP BANNER */}
+        {isScholarship && scholarshipCourse && (
+          <section className="mb-6 animate-fade-up">
+            <div className="rounded-2xl border border-blue-200 bg-blue-50 p-5 dark:border-blue-800 dark:bg-blue-950/40">
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                <div className="flex items-start gap-3">
+                  <span className="text-2xl">🎓</span>
+                  <div>
+                    <p className="font-black text-blue-900 dark:text-blue-200">
+                      You&apos;re a KoyoCode Founding Scholar
+                    </p>
+                    <p className="mt-1 text-sm text-blue-800 dark:text-blue-300">
+                      Your free scholarship covers{" "}
+                      <strong>{scholarshipCourse.title}</strong>. Finish it
+                      within 30 days to receive your certificate.
+                    </p>
+                  </div>
+                </div>
+                <Link
+                  href={`/courses/${scholarshipCourse.slug}`}
+                  className="inline-flex shrink-0 items-center gap-2 rounded-xl bg-blue-700 px-5 py-3 text-sm font-bold text-white shadow-lg shadow-blue-700/20 transition hover:bg-blue-800 dark:bg-blue-600"
+                >
+                  {scholarshipCourse.icon} Open course →
+                </Link>
+              </div>
+            </div>
+          </section>
+        )}
+
         {/* PROFILE HERO */}
         <section className="animate-fade-up">
           <div className="relative overflow-hidden rounded-3xl border border-blue-100 bg-blue-50 p-6 sm:p-8 dark:border-[#1f2a44] dark:bg-[#131c33]">
@@ -116,16 +200,23 @@ export default async function DashboardPage() {
                   </p>
 
                   <div className="mt-3 flex flex-wrap items-center gap-2">
-                    <span
-                      className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold ${
-                        role === "admin"
-                          ? "bg-purple-100 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300"
-                          : "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300"
-                      }`}
-                    >
-                      <span className="h-1.5 w-1.5 rounded-full bg-current" />
-                      {role === "admin" ? "Administrator" : "Student"}
-                    </span>
+                    {isScholarship ? (
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-100 px-3 py-1 text-xs font-bold text-blue-700 dark:bg-blue-950/60 dark:text-blue-300">
+                        <span className="h-1.5 w-1.5 rounded-full bg-current" />
+                        🎓 Founding Scholar
+                      </span>
+                    ) : (
+                      <span
+                        className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold ${
+                          role === "admin"
+                            ? "bg-purple-100 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300"
+                            : "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300"
+                        }`}
+                      >
+                        <span className="h-1.5 w-1.5 rounded-full bg-current" />
+                        {role === "admin" ? "Administrator" : "Student"}
+                      </span>
+                    )}
                     <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-100 px-3 py-1 text-xs font-bold text-blue-700 dark:bg-blue-950/60 dark:text-blue-300">
                       Member since {memberSince}
                     </span>
@@ -342,7 +433,7 @@ export default async function DashboardPage() {
                 {[
                   ["Name", fullName],
                   ["Email", user.email ?? "—"],
-                  ["Role", role],
+                  ["Role", isScholarship ? "Scholarship" : role],
                   ["Joined", memberSince],
                 ].map(([k, v]) => (
                   <div key={k} className="flex justify-between gap-3">
@@ -372,7 +463,7 @@ export default async function DashboardPage() {
         {/* EMPTY STATE */}
         {totalLessons === 0 && (
           <section className="mt-8 animate-fade-up" style={{ animationDelay: "0.3s" }}>
-            <div className="relative overflow-hidden rounded-3xl bg-blue-700 p-10 text-white sm:p-14 dark:bg-blue-700">
+            <div className="relative overflow-hidden rounded-3xl bg-blue-700 p-10 text-white sm:p-14">
               <div className="absolute -right-16 -top-16 h-56 w-56 rounded-full border-[40px] border-white/10" />
               <div className="absolute -bottom-20 -left-20 h-56 w-56 rounded-full bg-sky-400/20 blur-3xl" />
               <div className="relative max-w-2xl">

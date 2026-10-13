@@ -25,26 +25,44 @@ export async function updateSession(request: NextRequest) {
     }
   );
 
- let user = null;
-try {
-  const { data } = await supabase.auth.getUser();
-  user = data.user;
-} catch (err) {
-  // Stale refresh token — treat as logged out
-  user = null;
-}
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
   const path = request.nextUrl.pathname;
 
-  // ---------- Protect /dashboard/* ----------
-  if (!user && path.startsWith("/dashboard")) {
-    const url = request.nextUrl.clone();
-    url.pathname = "/login";
-    url.searchParams.set("next", path);
-    return NextResponse.redirect(url);
+  // ------------------------------------------------------------
+  // Protect /dashboard/*
+  // ------------------------------------------------------------
+  if (path.startsWith("/dashboard")) {
+    // Not logged in → login page
+    if (!user) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/login";
+      url.searchParams.set("next", path);
+      return NextResponse.redirect(url);
+    }
+
+    // Logged in → check if they must change their password
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("password_changed")
+      .eq("id", user.id)
+      .single();
+
+    const needsChange = profile?.password_changed === false;
+    const isOnChangePage = path === "/dashboard/change-password";
+
+    if (needsChange && !isOnChangePage) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/dashboard/change-password";
+      return NextResponse.redirect(url);
+    }
   }
 
-  // ---------- Protect /admin/* — requires admin role ----------
+  // ------------------------------------------------------------
+  // Protect /admin/*
+  // ------------------------------------------------------------
   if (path.startsWith("/admin")) {
     if (!user) {
       const url = request.nextUrl.clone();
