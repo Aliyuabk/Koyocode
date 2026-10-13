@@ -55,7 +55,7 @@ export default async function AdminRevenuePage() {
   }
 
   // ------------------------------------------------------------
-  // 2. Load settings (with fallback)
+  // 2. Load settings
   // ------------------------------------------------------------
   const { data: settings, error: settingsErr } = await supabase
     .from("platform_settings")
@@ -67,8 +67,6 @@ export default async function AdminRevenuePage() {
     console.error("[admin/revenue] settings error:", settingsErr.message);
   }
 
-  // If the row doesn't exist at all, that's a hard error we should
-  // surface rather than crash on. Give the admin a helpful message.
   if (!settings) {
     return (
       <>
@@ -141,7 +139,7 @@ on conflict (id) do nothing;`}
   const revenue30 = last30.reduce((s, p) => s + p.amount_kobo, 0);
 
   // ------------------------------------------------------------
-  // 6. Pass to client — sanitized + typed
+  // 6. Pass to client
   // ------------------------------------------------------------
   return (
     <RevenueManager
@@ -166,6 +164,14 @@ on conflict (id) do nothing;`}
         ads_skip_for_admins: settings.ads_skip_for_admins ?? true,
         ads_skip_on_exam: settings.ads_skip_on_exam ?? true,
         ads_skip_on_checkout: settings.ads_skip_on_checkout ?? true,
+        scholarship_enabled: settings.scholarship_enabled ?? false,
+        scholarship_title:
+          settings.scholarship_title ??
+          "KoyoCode Scholarship Program",
+        scholarship_description:
+          settings.scholarship_description ??
+          "Free access to one premium course + a verified certificate.",
+        scholarship_max_seats: settings.scholarship_max_seats ?? 30,
       }}
       payments={(payments ?? []).map((p) => ({
         id: p.id,

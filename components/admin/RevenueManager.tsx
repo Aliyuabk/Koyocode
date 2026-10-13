@@ -31,6 +31,10 @@ type Settings = {
   ads_skip_for_admins: boolean;
   ads_skip_on_exam: boolean;
   ads_skip_on_checkout: boolean;
+  scholarship_enabled: boolean;
+  scholarship_title: string;
+  scholarship_description: string;
+  scholarship_max_seats: number;
 };
 
 type Payment = {
@@ -67,7 +71,13 @@ export default function RevenueManager({
   const router = useRouter();
 
   const [tab, setTab] = useState<
-    "overview" | "payments" | "certificates" | "courses" | "ads" | "keys"
+    | "overview"
+    | "payments"
+    | "certificates"
+    | "courses"
+    | "scholarship"
+    | "ads"
+    | "keys"
   >("overview");
 
   const [form, setForm] = useState<Settings>(settings);
@@ -85,7 +95,6 @@ export default function RevenueManager({
 
   function update<K extends keyof Settings>(key: K, value: Settings[K]) {
     setForm((f) => ({ ...f, [key]: value }));
-    // Clear any previous save state on edit
     setSaveError(null);
     setSaveOk(false);
   }
@@ -95,7 +104,6 @@ export default function RevenueManager({
     setSaveError(null);
     setSaveOk(false);
 
-    // Prepare payload — only the fields the admin can edit
     const payload = {
       payments_enabled: form.payments_enabled,
       paystack_public_key: form.paystack_public_key?.trim() || null,
@@ -113,6 +121,10 @@ export default function RevenueManager({
       ads_skip_for_admins: form.ads_skip_for_admins,
       ads_skip_on_exam: form.ads_skip_on_exam,
       ads_skip_on_checkout: form.ads_skip_on_checkout,
+      scholarship_enabled: form.scholarship_enabled,
+      scholarship_title: form.scholarship_title,
+      scholarship_description: form.scholarship_description,
+      scholarship_max_seats: form.scholarship_max_seats,
     };
 
     const { data, error } = await supabase
@@ -132,9 +144,8 @@ export default function RevenueManager({
     }
 
     if (!data) {
-      // No error but no row returned — RLS blocked it silently
       const msg =
-        "Save failed — RLS blocked the update. Check your admin role, or run the SQL fix on platform_settings.";
+        "Save failed — RLS blocked the update. Check your admin role.";
       setSaveError(msg);
       toast(msg, "err");
       return;
@@ -158,7 +169,7 @@ export default function RevenueManager({
     <div>
       <PageHeader
         title="Revenue"
-        subtitle="Payments, certificates, courses, ads, and platform keys"
+        subtitle="Payments, certificates, courses, scholarships, ads, and API keys"
         action={
           <Btn onClick={save} disabled={saving}>
             {saving ? "Saving…" : "Save settings"}
@@ -166,7 +177,6 @@ export default function RevenueManager({
         }
       />
 
-      {/* SAVE STATUS */}
       {saveError && (
         <div className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-700 dark:border-red-800 dark:bg-red-950/40 dark:text-red-300">
           ⚠ {saveError}
@@ -186,6 +196,7 @@ export default function RevenueManager({
             ["payments", "Payments"],
             ["certificates", "Certificates"],
             ["courses", "Premium courses"],
+            ["scholarship", "Scholarship"],
             ["ads", "Ads"],
             ["keys", "API keys"],
           ] as const
@@ -275,7 +286,7 @@ export default function RevenueManager({
                 <p className="text-xs font-extrabold uppercase tracking-wider text-purple-700 dark:text-purple-400">
                   Master switches
                 </p>
-                <div className="mt-4 grid gap-4 sm:grid-cols-3">
+                <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                   <label className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-[#1f2a44] dark:bg-[#0e1526]">
                     <input
                       type="checkbox"
@@ -329,6 +340,25 @@ export default function RevenueManager({
                       </p>
                       <p className="text-xs text-slate-500 dark:text-[#94a3b8]">
                         Enable paid courses
+                      </p>
+                    </div>
+                  </label>
+
+                  <label className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-[#1f2a44] dark:bg-[#0e1526]">
+                    <input
+                      type="checkbox"
+                      checked={form.scholarship_enabled}
+                      onChange={(e) =>
+                        update("scholarship_enabled", e.target.checked)
+                      }
+                      className="h-4 w-4 rounded border-slate-300 text-purple-700"
+                    />
+                    <div>
+                      <p className="text-sm font-bold dark:text-[#f1f5f9]">
+                        Scholarship
+                      </p>
+                      <p className="text-xs text-slate-500 dark:text-[#94a3b8]">
+                        Accept applications
                       </p>
                     </div>
                   </label>
@@ -548,6 +578,142 @@ export default function RevenueManager({
           </div>
         )}
 
+        {/* ============ SCHOLARSHIP ============ */}
+        {tab === "scholarship" && (
+          <div className="space-y-5">
+            {/* MASTER SWITCH */}
+            <div
+              className={`rounded-2xl border p-6 transition ${
+                form.scholarship_enabled
+                  ? "border-emerald-200 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-950/30"
+                  : "border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30"
+              }`}
+            >
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                <div>
+                  <p className="text-xs font-extrabold uppercase tracking-wider text-slate-600 dark:text-[#94a3b8]">
+                    Program status
+                  </p>
+                  <p
+                    className={`mt-1 text-2xl font-black ${
+                      form.scholarship_enabled
+                        ? "text-emerald-700 dark:text-emerald-400"
+                        : "text-amber-700 dark:text-amber-400"
+                    }`}
+                  >
+                    {form.scholarship_enabled
+                      ? "🟢 Applications OPEN"
+                      : "🔴 Applications CLOSED"}
+                  </p>
+                  <p className="mt-1 text-sm text-slate-600 dark:text-[#94a3b8]">
+                    {form.scholarship_enabled
+                      ? "Students can apply at /scholarship right now."
+                      : "The public page shows 'applications closed'."}
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    update(
+                      "scholarship_enabled",
+                      !form.scholarship_enabled
+                    )
+                  }
+                  className={`inline-flex items-center gap-2 rounded-full px-6 py-3 text-sm font-bold text-white shadow-lg transition ${
+                    form.scholarship_enabled
+                      ? "bg-red-600 shadow-red-600/20 hover:bg-red-700"
+                      : "bg-emerald-600 shadow-emerald-600/20 hover:bg-emerald-700"
+                  }`}
+                >
+                  {form.scholarship_enabled ? (
+                    <>🔒 Close applications</>
+                  ) : (
+                    <>🔓 Open applications</>
+                  )}
+                </button>
+              </div>
+
+              <p className="mt-4 text-xs text-slate-500 dark:text-[#94a3b8]">
+                ⚠ Click <strong>Save settings</strong> at the top-right to
+                apply the change.
+              </p>
+            </div>
+
+            {/* DETAILS */}
+            <div className="rounded-2xl border border-slate-200 bg-white p-6 dark:border-[#1f2a44] dark:bg-[#131c33]">
+              <p className="text-xs font-extrabold uppercase tracking-wider text-purple-700 dark:text-purple-400">
+                Program details
+              </p>
+
+              <div className="mt-5 space-y-4">
+                <Field
+                  label="Program title"
+                  hint="Shown at the top of /scholarship"
+                >
+                  <input
+                    className={inputCls}
+                    value={form.scholarship_title}
+                    onChange={(e) =>
+                      update("scholarship_title", e.target.value)
+                    }
+                    placeholder="KoyoCode Scholarship — Founding Scholars"
+                  />
+                </Field>
+
+                <Field
+                  label="Description"
+                  hint="Shown under the title"
+                >
+                  <textarea
+                    className={inputCls}
+                    rows={3}
+                    value={form.scholarship_description}
+                    onChange={(e) =>
+                      update("scholarship_description", e.target.value)
+                    }
+                    placeholder="Free access to one premium course + a verified certificate."
+                  />
+                </Field>
+
+                <Field
+                  label="Maximum seats"
+                  hint="Once this many applications are approved, new ones are waitlisted"
+                >
+                  <input
+                    type="number"
+                    min={1}
+                    className={inputCls}
+                    value={form.scholarship_max_seats}
+                    onChange={(e) =>
+                      update(
+                        "scholarship_max_seats",
+                        Math.max(1, Number(e.target.value))
+                      )
+                    }
+                  />
+                </Field>
+              </div>
+            </div>
+
+            {/* LINK TO APPLICATIONS */}
+            <div className="rounded-2xl border border-blue-200 bg-blue-50 p-6 dark:border-[#1f2a44] dark:bg-[#10182b]">
+              <p className="text-xs font-extrabold uppercase tracking-wider text-blue-700 dark:text-blue-400">
+                Applications
+              </p>
+              <p className="mt-3 text-sm text-slate-600 dark:text-[#94a3b8]">
+                Review, approve, or reject applicants in{" "}
+                <a
+                  href="/admin/scholarships"
+                  className="font-bold text-blue-700 hover:text-blue-900 dark:text-blue-400"
+                >
+                  /admin/scholarships →
+                </a>
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* ============ ADS ============ */}
         {tab === "ads" && (
           <div className="space-y-5">
@@ -690,7 +856,7 @@ export default function RevenueManager({
             <div className="mt-5 space-y-5">
               <Field
                 label="Paystack Public Key"
-                hint="Safe to display — used on the frontend. Starts with pk_test_ or pk_live_"
+                hint="Safe to display — used on the frontend"
               >
                 <input
                   className={inputCls}
@@ -709,11 +875,7 @@ export default function RevenueManager({
                 <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">
                   The <code>PAYSTACK_SECRET_KEY</code> is stored in environment
                   variables, never in the database. Add it to{" "}
-                  <code>.env.local</code> and Vercel:
-                  <br />
-                  <code className="mt-1 inline-block">
-                    PAYSTACK_SECRET_KEY=sk_test_...
-                  </code>
+                  <code>.env.local</code> and Vercel.
                 </p>
               </div>
 
@@ -728,20 +890,6 @@ export default function RevenueManager({
                   <option value="GHS">Ghanaian Cedi (GHS)</option>
                   <option value="KES">Kenyan Shilling (KES)</option>
                 </select>
-              </Field>
-
-              <Field
-                label="Support email"
-                hint="Shown to users on payment issues"
-              >
-                <input
-                  className={inputCls}
-                  value={form.paystack_public_key ?? ""}
-                  onChange={(e) =>
-                    update("paystack_public_key", e.target.value)
-                  }
-                  placeholder="aliyuabubakar11117@gmail.com"
-                />
               </Field>
             </div>
           </div>
