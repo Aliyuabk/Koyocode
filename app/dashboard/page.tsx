@@ -4,6 +4,8 @@ import { redirect } from "next/navigation";
 import Navbar from "@/components/Navbar";
 import Avatar from "@/components/ui/Avatar";
 import YouTubeSubscribe from "@/components/YouTubeSubscribe";
+import AdSlotAdsterra from "@/components/AdSlotAdsterra";
+import { getPublicSettings } from "@/lib/settings";
 
 export default async function DashboardPage() {
   const supabase = await createClient();
@@ -12,6 +14,10 @@ export default async function DashboardPage() {
   } = await supabase.auth.getUser();
 
   if (!user) redirect("/login");
+
+  const settings = await getPublicSettings();
+  const adsOn = settings.ads_enabled;
+  const slots = settings.ads_slots ?? {};
 
   const { data: profile } = await supabase
     .from("profiles")
@@ -356,6 +362,10 @@ export default async function DashboardPage() {
             </div>
 
             <YouTubeSubscribe />
+
+            {adsOn && slots.dashboard_sidebar && (
+              <AdSlotAdsterra slot="300x250" />
+            )}
           </div>
         </section>
 

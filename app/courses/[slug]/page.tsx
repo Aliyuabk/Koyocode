@@ -5,7 +5,7 @@ import Footer from "@/components/Footer";
 import Reveal from "@/components/Reveal";
 import EnrollButton from "@/components/EnrollButton";
 import BuyButton from "@/components/BuyButton";
-import AdSlot from "@/components/AdSlot";
+import AdSlotAdsterra from "@/components/AdSlotAdsterra";
 import { createClient } from "@/lib/supabase/server";
 import { getCourseBySlug, getLessonsByCourse } from "@/lib/queries";
 import { getPublicSettings, koboToNaira } from "@/lib/settings";
@@ -23,12 +23,14 @@ export default async function CoursePage({
   const lessons = await getLessonsByCourse(course.id);
   const settings = await getPublicSettings();
 
+  const adsOn = settings.ads_enabled;
+  const slots = settings.ads_slots ?? {};
+
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
-  // Enrollment + payment status
   let enrolled = false;
   let paidAt: string | null = null;
   if (user) {
@@ -44,7 +46,6 @@ export default async function CoursePage({
 
   const hasPremiumAccess = !course.is_premium || !!paidAt;
 
-  // Progress map
   let progressMap: Record<
     string,
     { watched_percent: number; completed: boolean }
@@ -74,7 +75,6 @@ export default async function CoursePage({
     : 0;
   const allDone = totalLessons > 0 && completedCount === totalLessons;
 
-  // Exam settings
   const { data: examSettings } = await supabase
     .from("course_exam_settings")
     .select("passing_score, question_count, is_enabled")
@@ -95,9 +95,9 @@ export default async function CoursePage({
   }
 
   const totalMinutes = lessons.reduce((s, l) => s + l.duration_minutes, 0);
-
   const previewCount = course.preview_lesson_count ?? 0;
-  const showPreviewNote = course.is_premium && !hasPremiumAccess && previewCount > 0;
+  const showPreviewNote =
+    course.is_premium && !hasPremiumAccess && previewCount > 0;
 
   return (
     <>
@@ -116,7 +116,6 @@ export default async function CoursePage({
               </Link>
 
               <div className="mt-6 grid gap-10 lg:grid-cols-3 lg:items-start">
-                {/* LEFT */}
                 <div className="lg:col-span-2">
                   <div className="flex items-center gap-3">
                     <span
@@ -165,7 +164,7 @@ export default async function CoursePage({
                   </div>
                 </div>
 
-                {/* RIGHT — enroll / progress / pay card */}
+                {/* RIGHT SIDE CARD */}
                 <div className="lg:col-span-1">
                   <div className="sticky top-24 rounded-2xl border border-slate-200 bg-white p-6 shadow-xl shadow-blue-900/5 dark:border-[#1f2a44] dark:bg-[#131c33]">
                     {enrolled && hasPremiumAccess ? (
@@ -232,7 +231,7 @@ export default async function CoursePage({
                           <BuyButton
                             type="course"
                             courseId={course.id}
-                            label={`Unlock full course`}
+                            label="Unlock full course"
                           />
                         </div>
 
@@ -331,10 +330,7 @@ export default async function CoursePage({
                 const isPreview =
                   course.is_premium && !hasPremiumAccess && idx < previewCount;
 
-                const canAccess =
-                  enrolled && (hasPremiumAccess || isPreview);
-                const isLocked =
-                  course.is_premium && !hasPremiumAccess && !isPreview;
+                const canAccess = enrolled && (hasPremiumAccess || isPreview);
 
                 const inner = (
                   <div
@@ -409,7 +405,6 @@ export default async function CoursePage({
             </ol>
           )}
 
-          {/* PREMIUM CTA */}
           {enrolled && course.is_premium && !hasPremiumAccess && (
             <Reveal>
               <div className="mt-10 rounded-2xl border border-amber-200 bg-amber-50 p-8 text-center dark:border-amber-800 dark:bg-amber-950/30">
@@ -435,7 +430,6 @@ export default async function CoursePage({
             </Reveal>
           )}
 
-          {/* FREE COURSE ENROLL CTA */}
           {!enrolled && lessons.length > 0 && (
             <Reveal>
               <div className="mt-10 rounded-2xl border border-blue-100 bg-blue-50 p-8 text-center dark:border-[#1f2a44] dark:bg-[#10182b]">
@@ -460,10 +454,12 @@ export default async function CoursePage({
           )}
         </section>
 
-        {/* ==================== AD ==================== */}
-        <div className="mx-auto max-w-5xl px-5 pb-12 sm:px-8">
-          <AdSlot slotId="lesson_bottom" />
-        </div>
+        {/* ==================== AD: LESSON BOTTOM ==================== */}
+        {adsOn && slots.lesson_bottom && (
+          <section className="mx-auto max-w-5xl px-5 py-8 sm:px-8">
+            <AdSlotAdsterra slot="300x250" />
+          </section>
+        )}
 
         {/* ==================== FINAL EXAM CTA ==================== */}
         {enrolled && hasPremiumAccess && examEnabled && (

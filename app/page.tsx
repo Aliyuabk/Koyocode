@@ -4,11 +4,19 @@ import Footer from "@/components/Footer";
 import CourseGrid from "@/components/CourseGrid";
 import FAQ from "@/components/FAQ";
 import Reveal from "@/components/Reveal";
-import AdSlot from "@/components/AdSlot";
+import AdSlotAdsterra from "@/components/AdSlotAdsterra";
 import { getCourses, getFAQs } from "@/lib/queries";
+import { getPublicSettings } from "@/lib/settings";
 
 export default async function Home() {
-  const [courses, faqs] = await Promise.all([getCourses(), getFAQs()]);
+  const [courses, faqs, settings] = await Promise.all([
+    getCourses(),
+    getFAQs(),
+    getPublicSettings(),
+  ]);
+
+  const adsOn = settings.ads_enabled;
+  const slots = settings.ads_slots ?? {};
 
   return (
     <>
@@ -163,10 +171,12 @@ export default async function Home() {
           </div>
         </section>
 
-        {/* ==================== AD: TOP ==================== */}
-        <div className="mx-auto max-w-5xl px-5 py-6 sm:px-8">
-          <AdSlot slotId="homepage_top" />
-        </div>
+        {/* ==================== AD: HOMEPAGE TOP ==================== */}
+        {adsOn && slots.homepage_top && (
+          <section className="mx-auto max-w-5xl px-5 py-6 sm:px-8">
+            <AdSlotAdsterra slot="728x90" />
+          </section>
+        )}
 
         {/* ==================== BENEFITS ==================== */}
         <section className="border-y border-blue-100 bg-blue-50 dark:border-[#1f2a44] dark:bg-[#10182b]">
@@ -327,10 +337,12 @@ export default async function Home() {
         {/* ==================== FAQ ==================== */}
         <FAQ faqs={faqs} />
 
-        {/* ==================== AD: BOTTOM ==================== */}
-        <div className="mx-auto max-w-5xl px-5 py-6 sm:px-8">
-          <AdSlot slotId="homepage_bottom" />
-        </div>
+        {/* ==================== AD: HOMEPAGE BOTTOM ==================== */}
+        {adsOn && slots.homepage_bottom && (
+          <section className="mx-auto max-w-5xl px-5 py-6 sm:px-8">
+            <AdSlotAdsterra slot="300x250" />
+          </section>
+        )}
 
         {/* ==================== NEWSLETTER ==================== */}
         <section className="px-5 pb-20 sm:px-8 lg:pb-28">
