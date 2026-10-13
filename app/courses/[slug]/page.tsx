@@ -33,19 +33,47 @@ export default async function CoursePage({
 
   let enrolled = false;
   let paidAt: string | null = null;
+  let isScholarship = false;
+  let scholarshipCourseId: string | null = null;
+
   if (user) {
-    const { data } = await supabase
-      .from("enrollments")
-      .select("id, paid_at")
-      .eq("user_id", user.id)
-      .eq("course_id", course.id)
-      .maybeSingle();
-    enrolled = !!data;
-    paidAt = (data as any)?.paid_at ?? null;
+    const [{ data: enrollment }, { data: profile }] = await Promise.all([
+      supabase
+        .from("enrollments")
+        .select("id, paid_at")
+        .eq("user_id", user.id)
+        .eq("course_id", course.id)
+        .maybeSingle(),
+      supabase
+        .from("profiles")
+        .select("is_scholarship, scholarship_course_id")
+        .eq("id", user.id)
+        .single(),
+    ]);
+
+    enrolled = !!enrollment;
+    paidAt = (enrollment as any)?.paid_at ?? null;
+    isScholarship = profile?.is_scholarship ?? false;
+    scholarshipCourseId = profile?.scholarship_course_id ?? null;
   }
 
-  const hasPremiumAccess = !course.is_premium || !!paidAt;
+  // ============================================================
+  // ACCESS RULES
+  // ============================================================
+  // - Free course: anyone can access once enrolled
+  // - Premium + paid: full access
+  // - Premium + scholarship + this is their approved course: full access
+  // - Premium + scholarship + different premium course: LOCKED
+  // ============================================================
+  const isScholarshipApprovedCourse =
+    isScholarship && scholarshipCourseId === course.id;
 
+  const hasPremiumAccess =
+    !course.is_premium || !!paidAt || isScholarshipApprovedCourse;
+
+  // ============================================================
+  // Progress map
+  // ============================================================
   let progressMap: Record<
     string,
     { watched_percent: number; completed: boolean }
@@ -75,6 +103,9 @@ export default async function CoursePage({
     : 0;
   const allDone = totalLessons > 0 && completedCount === totalLessons;
 
+  // ============================================================
+  // Exam settings
+  // ============================================================
   const { data: examSettings } = await supabase
     .from("course_exam_settings")
     .select("passing_score, question_count, is_enabled")
@@ -96,8 +127,6 @@ export default async function CoursePage({
 
   const totalMinutes = lessons.reduce((s, l) => s + l.duration_minutes, 0);
   const previewCount = course.preview_lesson_count ?? 0;
-  const showPreviewNote =
-    course.is_premium && !hasPremiumAccess && previewCount > 0;
 
   return (
     <>
@@ -116,6 +145,7 @@ export default async function CoursePage({
               </Link>
 
               <div className="mt-6 grid gap-10 lg:grid-cols-3 lg:items-start">
+                {/* LEFT */}
                 <div className="lg:col-span-2">
                   <div className="flex items-center gap-3">
                     <span
@@ -164,10 +194,11 @@ export default async function CoursePage({
                   </div>
                 </div>
 
-                {/* RIGHT SIDE CARD */}
+                {/* RIGHT SIDEBAR CARD */}
                 <div className="lg:col-span-1">
                   <div className="sticky top-24 rounded-2xl border border-slate-200 bg-white p-6 shadow-xl shadow-blue-900/5 dark:border-[#1f2a44] dark:bg-[#131c33]">
                     {enrolled && hasPremiumAccess ? (
+                      // ============== ENROLLED + ACCESS ==============
                       <>
                         <p className="text-xs font-extrabold uppercase tracking-wider text-blue-700 dark:text-blue-400">
                           Your progress
@@ -211,10 +242,60 @@ export default async function CoursePage({
                         )}
 
                         <div className="mt-4 flex items-center justify-center gap-2 text-xs font-bold text-emerald-600 dark:text-emerald-400">
-                          <span>✓</span> You have full access
+                          {isScholarshipApprovedCourse ? (
+                            <>
+                              <span>🎓</span> Scholarship access
+                            </>
+                          ) : (
+                            <>
+                              <span>✓</span> You have full access
+                            </>
+                          )}
+                        </div>
+                      </>
+                    ) : enrolled &&
+                      course.is_premium &&
+                      !hasPremiumAccess &&
+                      isScholarship ? (
+                      // ============== SCHOLARSHIP BUT DIFFERENT COURSE ==============
+                      <>
+                        <p className="text-xs font-extrabold uppercase tracking-wider text-amber-700 dark:text-amber-400">
+                          🎓 Scholarship student
+                        </p>
+                        <p className="mt-3 text-2xl font-black text-slate-900 dark:text-[#f1f5f9]">
+                          Not your scholarship course
+                        </p>
+                        <p className="mt-2 text-sm text-slate-600 dark:text-[#94a3b8]">
+                          Your free scholarship covers a different course.
+                          You can still buy this one at the regular price.
+                        </p>
+
+                        <div className="mt-5 rounded-xl border border-blue-200 bg-blue-50 p-4 text-xs text-blue-800 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-300">
+                          🎓 You have free access to your approved course.
+                          Check your{" "}
+                          <Link
+                            href="/dashboard"
+                            className="font-bold underline"
+                          >
+                            dashboard
+                          </Link>
+                          .
+                        </div>
+
+                        <p className="mt-5 text-3xl font-black text-slate-900 dark:text-[#f1f5f9]">
+                          {koboToNaira(course.price_kobo, settings.currency)}
+                        </p>
+
+                        <div className="mt-4">
+                          <BuyButton
+                            type="course"
+                            courseId={course.id}
+                            label="Buy this course"
+                          />
                         </div>
                       </>
                     ) : enrolled && course.is_premium && !hasPremiumAccess ? (
+                      // ============== REGULAR PREMIUM NOT PAID ==============
                       <>
                         <p className="text-xs font-extrabold uppercase tracking-wider text-amber-700 dark:text-amber-400">
                           ⭐ Premium course
@@ -235,7 +316,7 @@ export default async function CoursePage({
                           />
                         </div>
 
-                        {showPreviewNote && (
+                        {previewCount > 0 && (
                           <p className="mt-3 text-center text-xs text-slate-500 dark:text-[#94a3b8]">
                             👀 Preview the first {previewCount} lesson
                             {previewCount === 1 ? "" : "s"} free below
@@ -243,6 +324,7 @@ export default async function CoursePage({
                         )}
                       </>
                     ) : (
+                      // ============== NOT ENROLLED ==============
                       <>
                         <p className="text-xs font-extrabold uppercase tracking-wider text-blue-700 dark:text-blue-400">
                           {course.is_premium ? "Premium course" : "Free course"}
@@ -405,31 +487,63 @@ export default async function CoursePage({
             </ol>
           )}
 
-          {enrolled && course.is_premium && !hasPremiumAccess && (
-            <Reveal>
-              <div className="mt-10 rounded-2xl border border-amber-200 bg-amber-50 p-8 text-center dark:border-amber-800 dark:bg-amber-950/30">
-                <p className="text-3xl">🔓</p>
-                <p className="mt-3 text-lg font-black text-slate-900 dark:text-[#f1f5f9]">
-                  Unlock all {totalLessons} lessons
-                </p>
-                <p className="mt-2 text-sm text-slate-600 dark:text-[#94a3b8]">
-                  One-time payment of{" "}
-                  <strong>
-                    {koboToNaira(course.price_kobo, settings.currency)}
-                  </strong>
-                  . Lifetime access. Certificate included.
-                </p>
-                <div className="mx-auto mt-6 max-w-xs">
-                  <BuyButton
-                    type="course"
-                    courseId={course.id}
-                    label="Unlock full course"
-                  />
+          {/* PREMIUM CTA — regular paid user */}
+          {enrolled &&
+            course.is_premium &&
+            !hasPremiumAccess &&
+            !isScholarship && (
+              <Reveal>
+                <div className="mt-10 rounded-2xl border border-amber-200 bg-amber-50 p-8 text-center dark:border-amber-800 dark:bg-amber-950/30">
+                  <p className="text-3xl">🔓</p>
+                  <p className="mt-3 text-lg font-black text-slate-900 dark:text-[#f1f5f9]">
+                    Unlock all {totalLessons} lessons
+                  </p>
+                  <p className="mt-2 text-sm text-slate-600 dark:text-[#94a3b8]">
+                    One-time payment of{" "}
+                    <strong>
+                      {koboToNaira(course.price_kobo, settings.currency)}
+                    </strong>
+                    . Lifetime access. Certificate included.
+                  </p>
+                  <div className="mx-auto mt-6 max-w-xs">
+                    <BuyButton
+                      type="course"
+                      courseId={course.id}
+                      label="Unlock full course"
+                    />
+                  </div>
                 </div>
-              </div>
-            </Reveal>
-          )}
+              </Reveal>
+            )}
 
+          {/* PREMIUM CTA — scholarship user looking at a non-scholarship course */}
+          {enrolled &&
+            course.is_premium &&
+            !hasPremiumAccess &&
+            isScholarship &&
+            !isScholarshipApprovedCourse && (
+              <Reveal>
+                <div className="mt-10 rounded-2xl border border-blue-200 bg-blue-50 p-8 text-center dark:border-blue-800 dark:bg-blue-950/30">
+                  <p className="text-3xl">🎓</p>
+                  <p className="mt-3 text-lg font-black text-slate-900 dark:text-[#f1f5f9]">
+                    Not your scholarship course
+                  </p>
+                  <p className="mt-2 text-sm text-slate-600 dark:text-[#94a3b8]">
+                    Your scholarship covers a different course. You can buy
+                    this one to add it to your learning path.
+                  </p>
+                  <div className="mx-auto mt-6 max-w-xs">
+                    <BuyButton
+                      type="course"
+                      courseId={course.id}
+                      label={`Buy for ${koboToNaira(course.price_kobo, settings.currency)}`}
+                    />
+                  </div>
+                </div>
+              </Reveal>
+            )}
+
+          {/* FREE CTA — not enrolled */}
           {!enrolled && lessons.length > 0 && (
             <Reveal>
               <div className="mt-10 rounded-2xl border border-blue-100 bg-blue-50 p-8 text-center dark:border-[#1f2a44] dark:bg-[#10182b]">
@@ -454,7 +568,7 @@ export default async function CoursePage({
           )}
         </section>
 
-        {/* ==================== AD: LESSON BOTTOM ==================== */}
+        {/* ==================== AD ==================== */}
         {adsOn && slots.lesson_bottom && (
           <section className="mx-auto max-w-5xl px-5 py-8 sm:px-8">
             <AdSlotAdsterra slot="300x250" />

@@ -19,13 +19,13 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Not logged in" }, { status: 401 });
   }
 
-  const { data: profile } = await userSupabase
+  const { data: adminProfile } = await userSupabase
     .from("profiles")
     .select("role")
     .eq("id", user.id)
     .single();
 
-  if (profile?.role !== "admin") {
+  if (adminProfile?.role !== "admin") {
     return NextResponse.json({ error: "Admin only" }, { status: 403 });
   }
 
@@ -48,7 +48,7 @@ export async function POST(req: Request) {
   }
 
   // ============================================================
-  // 3. Load application using service role
+  // 3. Load application via service role
   // ============================================================
   const admin = createAdmin(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -69,10 +69,7 @@ export async function POST(req: Request) {
   }
 
   if (app.status === "approved") {
-    return NextResponse.json(
-      { error: "Already approved" },
-      { status: 400 }
-    );
+    return NextResponse.json({ error: "Already approved" }, { status: 400 });
   }
 
   if (!app.course_id) {
@@ -83,7 +80,7 @@ export async function POST(req: Request) {
   }
 
   // ============================================================
-  // 4. Load course details for the email
+  // 4. Load course
   // ============================================================
   const { data: course } = await admin
     .from("courses")
@@ -95,8 +92,6 @@ export async function POST(req: Request) {
   // 5. Create or find the auth user
   // ============================================================
   const tempPassword = generatePassword();
-
-  // Check if a user with this email already exists
   const { data: existingUsers } = await admin.auth.admin.listUsers();
   const existing = existingUsers?.users?.find(
     (u) => u.email?.toLowerCase() === app.email.toLowerCase()
@@ -160,7 +155,29 @@ export async function POST(req: Request) {
   }
 
   // ============================================================
-  // 7. Mark application approved
+  // 7. Tag profile as scholarship + lock premium access
+  // ============================================================
+  if (userIsNew) {
+    await admin
+      .from("profiles")
+      .update({
+        is_scholarship: true,
+        scholarship_course_id: app.course_id,
+        password_changed: false,
+      })
+      .eq("id", userId);
+  } else {
+    await admin
+      .from("profiles")
+      .update({
+        is_scholarship: true,
+        scholarship_course_id: app.course_id,
+      })
+      .eq("id", userId);
+  }
+
+  // ============================================================
+  // 8. Mark application approved
   // ============================================================
   await admin
     .from("scholarship_applications")
@@ -173,7 +190,7 @@ export async function POST(req: Request) {
     .eq("id", application_id);
 
   // ============================================================
-  // 8. Send the welcome email via Gmail SMTP
+  // 9. Send welcome email via Gmail SMTP
   // ============================================================
   let emailSent = false;
   let emailError: string | null = null;
@@ -229,7 +246,7 @@ export async function POST(req: Request) {
   }
 
   // ============================================================
-  // 9. Return success
+  // 10. Return
   // ============================================================
   return NextResponse.json({
     ok: true,
@@ -253,6 +270,15 @@ function generatePassword() {
   return out + "@1";
 }
 
+function escapeHtml(s: string) {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 function buildWelcomeEmail({
   firstName,
   fullName,
@@ -271,7 +297,6 @@ function buildWelcomeEmail({
   siteUrl: string;
 }) {
   const loginUrl = `${siteUrl}/login`;
-  const dashboardUrl = `${siteUrl}/dashboard`;
 
   return `
 <!DOCTYPE html>
@@ -285,7 +310,6 @@ function buildWelcomeEmail({
   <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="background:#f4f6fb;padding:40px 16px;">
     <tr>
       <td align="center">
-
         <table width="600" cellpadding="0" cellspacing="0" role="presentation" style="max-width:600px;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 8px 32px rgba(10,61,145,0.08);">
 
           <!-- HEADER -->
@@ -310,7 +334,6 @@ function buildWelcomeEmail({
           <!-- BODY -->
           <tr>
             <td style="padding:40px;">
-
               <h2 style="margin:0 0 12px;color:#0f172a;font-size:24px;font-weight:800;">
                 🎓 Congratulations, ${escapeHtml(firstName)}!
               </h2>
@@ -374,24 +397,22 @@ function buildWelcomeEmail({
                 </tr>
               </table>
 
-              <!-- CTA -->
               <table cellpadding="0" cellspacing="0" role="presentation" align="center" style="margin:32px 0;">
                 <tr>
                   <td style="border-radius:12px;background:#0A3D91;box-shadow:0 8px 24px rgba(10,61,145,0.3);">
                     <a href="${loginUrl}" style="display:inline-block;padding:16px 40px;color:#ffffff;font-size:15px;font-weight:700;text-decoration:none;border-radius:12px;">
-                      Log in and start learning →
+                      Log in and set your password →
                     </a>
                   </td>
                 </tr>
               </table>
 
-              <!-- WARNING -->
               <table cellpadding="0" cellspacing="0" role="presentation" width="100%" style="margin:24px 0;border-left:3px solid #f59e0b;background:#fffbeb;border-radius:0 8px 8px 0;">
                 <tr>
                   <td style="padding:16px 20px;">
                     <p style="margin:0;color:#78350f;font-size:13px;line-height:1.6;">
-                      <strong>⚠ Change your password after logging in.</strong><br />
-                      Go to <strong>Dashboard → Settings</strong> to set your own password and update your profile.
+                      <strong>⚠ First login will ask you to set your own password.</strong><br />
+                      You&apos;ll use the temporary password above once, then choose a new one.
                     </p>
                   </td>
                 </tr>
@@ -415,7 +436,6 @@ function buildWelcomeEmail({
                 <strong>Aliyu Abubakar</strong><br />
                 <span style="color:#94a3b8;">Founder, KoyoCode</span>
               </p>
-
             </td>
           </tr>
 
@@ -437,20 +457,10 @@ function buildWelcomeEmail({
         <p style="margin:24px 0 0;color:#94a3b8;font-size:11px;line-height:1.6;text-align:center;">
           You received this email because you applied for a KoyoCode Scholarship.
         </p>
-
       </td>
     </tr>
   </table>
 </body>
 </html>
   `;
-}
-
-function escapeHtml(s: string) {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
 }
