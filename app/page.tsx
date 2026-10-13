@@ -17,6 +17,7 @@ export default async function Home() {
 
   const adsOn = settings.ads_enabled;
   const slots = settings.ads_slots ?? {};
+  const scholarshipOn = settings.scholarship_enabled;
 
   return (
     <>
@@ -56,12 +57,21 @@ export default async function Home() {
                 >
                   Explore courses →
                 </a>
-                <a
-                  href="#how-it-works"
-                  className="inline-flex items-center justify-center gap-2 rounded-full border border-slate-200 bg-white px-7 py-4 font-bold text-slate-700 transition hover:border-blue-200 hover:bg-blue-50 dark:border-[#1f2a44] dark:bg-[#0e1526] dark:text-[#cbd5e1] dark:hover:border-blue-600 dark:hover:bg-[#1b2742]"
-                >
-                  How it works ↗
-                </a>
+                {scholarshipOn ? (
+                  <a
+                    href="/scholarship"
+                    className="inline-flex items-center justify-center gap-2 rounded-full border border-blue-200 bg-blue-50 px-7 py-4 font-bold text-blue-800 transition hover:-translate-y-0.5 hover:border-blue-300 hover:bg-blue-100 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-300 dark:hover:bg-blue-950/60"
+                  >
+                    🎓 Apply for scholarship
+                  </a>
+                ) : (
+                  <a
+                    href="#how-it-works"
+                    className="inline-flex items-center justify-center gap-2 rounded-full border border-slate-200 bg-white px-7 py-4 font-bold text-slate-700 transition hover:border-blue-200 hover:bg-blue-50 dark:border-[#1f2a44] dark:bg-[#0e1526] dark:text-[#cbd5e1] dark:hover:border-blue-600 dark:hover:bg-[#1b2742]"
+                  >
+                    How it works ↗
+                  </a>
+                )}
               </div>
 
               <div className="mt-10 flex flex-wrap gap-x-6 gap-y-3 text-sm text-slate-600 dark:text-[#94a3b8]">
@@ -170,6 +180,39 @@ export default async function Home() {
             </Reveal>
           </div>
         </section>
+
+        {/* ==================== SCHOLARSHIP BANNER ==================== */}
+        {scholarshipOn && (
+          <section className="border-y border-blue-100 bg-blue-50 dark:border-[#1f2a44] dark:bg-[#10182b]">
+            <div className="mx-auto max-w-7xl px-5 py-8 sm:px-8">
+              <Reveal>
+                <div className="overflow-hidden rounded-3xl bg-blue-700 p-8 text-white sm:p-10">
+                  <div className="flex flex-col items-start justify-between gap-6 lg:flex-row lg:items-center">
+                    <div className="max-w-2xl">
+                      <span className="inline-flex items-center gap-2 rounded-full bg-white/15 px-4 py-2 text-xs font-bold uppercase tracking-wider">
+                        🎓 Scholarship program
+                      </span>
+                      <h2 className="mt-4 text-2xl font-black leading-tight sm:text-3xl">
+                        Free access to one premium course
+                      </h2>
+                      <p className="mt-3 leading-7 text-blue-100">
+                        {settings.scholarship_description ||
+                          "Apply for a free scholarship seat. Limited to committed students who complete the course within 30 days."}
+                      </p>
+                    </div>
+
+                    <a
+                      href="/scholarship"
+                      className="inline-flex shrink-0 items-center gap-2 rounded-full bg-white px-7 py-4 font-extrabold text-blue-800 shadow-xl transition hover:-translate-y-0.5 hover:bg-blue-50"
+                    >
+                      Apply now →
+                    </a>
+                  </div>
+                </div>
+              </Reveal>
+            </div>
+          </section>
+        )}
 
         {/* ==================== BENEFITS ==================== */}
         <section className="border-y border-blue-100 bg-blue-50 dark:border-[#1f2a44] dark:bg-[#10182b]">
