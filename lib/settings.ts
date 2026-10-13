@@ -17,6 +17,10 @@ export type PublicSettings = {
   ads_skip_on_exam: boolean;
   ads_skip_on_checkout: boolean;
   support_email: string;
+  scholarship_enabled: boolean;
+  scholarship_title: string;
+  scholarship_description: string;
+  scholarship_max_seats: number;
 };
 
 const FALLBACK: PublicSettings = {
@@ -33,6 +37,11 @@ const FALLBACK: PublicSettings = {
   ads_skip_on_exam: true,
   ads_skip_on_checkout: true,
   support_email: "support@koyocode.com.ng",
+  scholarship_enabled: false,
+  scholarship_title: "KoyoCode Scholarship Program",
+  scholarship_description:
+    "Apply for a free seat in our premium courses.",
+  scholarship_max_seats: 30,
 };
 
 /* ============================================================
@@ -74,6 +83,14 @@ export async function getPublicSettings(): Promise<PublicSettings> {
       ads_skip_on_checkout:
         data.ads_skip_on_checkout ?? FALLBACK.ads_skip_on_checkout,
       support_email: data.support_email ?? FALLBACK.support_email,
+      scholarship_enabled:
+        data.scholarship_enabled ?? FALLBACK.scholarship_enabled,
+      scholarship_title:
+        data.scholarship_title ?? FALLBACK.scholarship_title,
+      scholarship_description:
+        data.scholarship_description ?? FALLBACK.scholarship_description,
+      scholarship_max_seats:
+        data.scholarship_max_seats ?? FALLBACK.scholarship_max_seats,
     };
   } catch {
     return FALLBACK;
