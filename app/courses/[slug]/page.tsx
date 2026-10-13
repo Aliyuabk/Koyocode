@@ -4,8 +4,11 @@ import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import Reveal from "@/components/Reveal";
 import EnrollButton from "@/components/EnrollButton";
+import BuyButton from "@/components/BuyButton";
+import AdSlot from "@/components/AdSlot";
 import { createClient } from "@/lib/supabase/server";
 import { getCourseBySlug, getLessonsByCourse } from "@/lib/queries";
+import { getPublicSettings, koboToNaira } from "@/lib/settings";
 
 export default async function CoursePage({
   params,
@@ -18,23 +21,28 @@ export default async function CoursePage({
   if (!course) notFound();
 
   const lessons = await getLessonsByCourse(course.id);
+  const settings = await getPublicSettings();
 
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
-  // Enrollment check
+  // Enrollment + payment status
   let enrolled = false;
+  let paidAt: string | null = null;
   if (user) {
     const { data } = await supabase
       .from("enrollments")
-      .select("id")
+      .select("id, paid_at")
       .eq("user_id", user.id)
       .eq("course_id", course.id)
       .maybeSingle();
     enrolled = !!data;
+    paidAt = (data as any)?.paid_at ?? null;
   }
+
+  const hasPremiumAccess = !course.is_premium || !!paidAt;
 
   // Progress map
   let progressMap: Record<
@@ -66,7 +74,7 @@ export default async function CoursePage({
     : 0;
   const allDone = totalLessons > 0 && completedCount === totalLessons;
 
-  // Exam enabled?
+  // Exam settings
   const { data: examSettings } = await supabase
     .from("course_exam_settings")
     .select("passing_score, question_count, is_enabled")
@@ -75,7 +83,6 @@ export default async function CoursePage({
 
   const examEnabled = examSettings?.is_enabled ?? false;
 
-  // Previous attempt (if any)
   let previousAttempt: { score: number; passed: boolean } | null = null;
   if (user && examEnabled) {
     const { data: attempt } = await supabase
@@ -88,6 +95,9 @@ export default async function CoursePage({
   }
 
   const totalMinutes = lessons.reduce((s, l) => s + l.duration_minutes, 0);
+
+  const previewCount = course.preview_lesson_count ?? 0;
+  const showPreviewNote = course.is_premium && !hasPremiumAccess && previewCount > 0;
 
   return (
     <>
@@ -123,6 +133,11 @@ export default async function CoursePage({
                       <span className="rounded-full bg-slate-200 px-3 py-1 text-xs font-bold text-slate-700 dark:bg-[#1b2742] dark:text-[#cbd5e1]">
                         {course.level}
                       </span>
+                      {course.is_premium && (
+                        <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-bold text-amber-700 dark:bg-amber-950/60 dark:text-amber-300">
+                          ⭐ Premium
+                        </span>
+                      )}
                       {course.tag && (
                         <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300">
                           {course.tag}
@@ -150,10 +165,10 @@ export default async function CoursePage({
                   </div>
                 </div>
 
-                {/* RIGHT — enroll / progress card */}
+                {/* RIGHT — enroll / progress / pay card */}
                 <div className="lg:col-span-1">
                   <div className="sticky top-24 rounded-2xl border border-slate-200 bg-white p-6 shadow-xl shadow-blue-900/5 dark:border-[#1f2a44] dark:bg-[#131c33]">
-                    {enrolled ? (
+                    {enrolled && hasPremiumAccess ? (
                       <>
                         <p className="text-xs font-extrabold uppercase tracking-wider text-blue-700 dark:text-blue-400">
                           Your progress
@@ -197,20 +212,53 @@ export default async function CoursePage({
                         )}
 
                         <div className="mt-4 flex items-center justify-center gap-2 text-xs font-bold text-emerald-600 dark:text-emerald-400">
-                          <span>✓</span> You are enrolled
+                          <span>✓</span> You have full access
                         </div>
+                      </>
+                    ) : enrolled && course.is_premium && !hasPremiumAccess ? (
+                      <>
+                        <p className="text-xs font-extrabold uppercase tracking-wider text-amber-700 dark:text-amber-400">
+                          ⭐ Premium course
+                        </p>
+                        <p className="mt-3 text-4xl font-black text-slate-900 dark:text-[#f1f5f9]">
+                          {koboToNaira(course.price_kobo, settings.currency)}
+                        </p>
+                        <p className="mt-2 text-sm text-slate-600 dark:text-[#94a3b8]">
+                          Unlock all {totalLessons} lessons + final exam +
+                          certificate eligibility. One-time payment.
+                        </p>
+
+                        <div className="mt-6">
+                          <BuyButton
+                            type="course"
+                            courseId={course.id}
+                            label={`Unlock full course`}
+                          />
+                        </div>
+
+                        {showPreviewNote && (
+                          <p className="mt-3 text-center text-xs text-slate-500 dark:text-[#94a3b8]">
+                            👀 Preview the first {previewCount} lesson
+                            {previewCount === 1 ? "" : "s"} free below
+                          </p>
+                        )}
                       </>
                     ) : (
                       <>
                         <p className="text-xs font-extrabold uppercase tracking-wider text-blue-700 dark:text-blue-400">
-                          Free course
+                          {course.is_premium ? "Premium course" : "Free course"}
                         </p>
                         <p className="mt-3 text-4xl font-black text-slate-900 dark:text-[#f1f5f9]">
-                          100% Free
+                          {course.is_premium
+                            ? koboToNaira(course.price_kobo, settings.currency)
+                            : "100% Free"}
                         </p>
                         <p className="mt-2 text-sm text-slate-600 dark:text-[#94a3b8]">
-                          Enroll to unlock all lessons, track progress, take the
-                          final exam, and earn a certificate.
+                          Enroll to unlock
+                          {course.is_premium
+                            ? ` the full ${totalLessons} lessons after payment`
+                            : " all lessons, track progress, take the final exam, and earn a certificate"}
+                          .
                         </p>
 
                         <div className="mt-6">
@@ -234,12 +282,14 @@ export default async function CoursePage({
                             </span>{" "}
                             Learn in Hausa + English
                           </li>
-                          <li className="flex items-center gap-2">
-                            <span className="text-blue-700 dark:text-blue-400">
-                              ✓
-                            </span>{" "}
-                            Verifiable certificate
-                          </li>
+                          {course.certificate_enabled && (
+                            <li className="flex items-center gap-2">
+                              <span className="text-blue-700 dark:text-blue-400">
+                                ✓
+                              </span>{" "}
+                              Verifiable certificate
+                            </li>
+                          )}
                         </ul>
                       </>
                     )}
@@ -277,7 +327,14 @@ export default async function CoursePage({
               {lessons.map((lesson, idx) => {
                 const p = progressMap[lesson.id];
                 const isDone = p?.completed ?? false;
-                const canAccess = enrolled;
+
+                const isPreview =
+                  course.is_premium && !hasPremiumAccess && idx < previewCount;
+
+                const canAccess =
+                  enrolled && (hasPremiumAccess || isPreview);
+                const isLocked =
+                  course.is_premium && !hasPremiumAccess && !isPreview;
 
                 const inner = (
                   <div
@@ -300,15 +357,22 @@ export default async function CoursePage({
                     </span>
 
                     <div className="min-w-0 flex-1">
-                      <p
-                        className={`truncate font-bold ${
-                          canAccess
-                            ? "text-slate-900 dark:text-[#f1f5f9]"
-                            : "text-slate-500 dark:text-[#64748b]"
-                        }`}
-                      >
-                        {lesson.title}
-                      </p>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p
+                          className={`truncate font-bold ${
+                            canAccess
+                              ? "text-slate-900 dark:text-[#f1f5f9]"
+                              : "text-slate-500 dark:text-[#64748b]"
+                          }`}
+                        >
+                          {lesson.title}
+                        </p>
+                        {isPreview && (
+                          <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-black uppercase text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300">
+                            Free preview
+                          </span>
+                        )}
+                      </div>
                       <p className="mt-0.5 truncate text-sm text-slate-500 dark:text-[#94a3b8]">
                         {lesson.duration_minutes} min
                         {p && !isDone && ` · ${p.watched_percent}% watched`}
@@ -345,6 +409,33 @@ export default async function CoursePage({
             </ol>
           )}
 
+          {/* PREMIUM CTA */}
+          {enrolled && course.is_premium && !hasPremiumAccess && (
+            <Reveal>
+              <div className="mt-10 rounded-2xl border border-amber-200 bg-amber-50 p-8 text-center dark:border-amber-800 dark:bg-amber-950/30">
+                <p className="text-3xl">🔓</p>
+                <p className="mt-3 text-lg font-black text-slate-900 dark:text-[#f1f5f9]">
+                  Unlock all {totalLessons} lessons
+                </p>
+                <p className="mt-2 text-sm text-slate-600 dark:text-[#94a3b8]">
+                  One-time payment of{" "}
+                  <strong>
+                    {koboToNaira(course.price_kobo, settings.currency)}
+                  </strong>
+                  . Lifetime access. Certificate included.
+                </p>
+                <div className="mx-auto mt-6 max-w-xs">
+                  <BuyButton
+                    type="course"
+                    courseId={course.id}
+                    label="Unlock full course"
+                  />
+                </div>
+              </div>
+            </Reveal>
+          )}
+
+          {/* FREE COURSE ENROLL CTA */}
           {!enrolled && lessons.length > 0 && (
             <Reveal>
               <div className="mt-10 rounded-2xl border border-blue-100 bg-blue-50 p-8 text-center dark:border-[#1f2a44] dark:bg-[#10182b]">
@@ -353,7 +444,9 @@ export default async function CoursePage({
                   Enroll to unlock all {lessons.length} lessons.
                 </p>
                 <p className="mt-2 text-sm text-slate-600 dark:text-[#94a3b8]">
-                  Free forever. No credit card required.
+                  {course.is_premium
+                    ? `Premium course · ${koboToNaira(course.price_kobo, settings.currency)} one-time`
+                    : "Free forever. No credit card required."}
                 </p>
                 <div className="mx-auto mt-6 max-w-xs">
                   <EnrollButton
@@ -367,8 +460,13 @@ export default async function CoursePage({
           )}
         </section>
 
+        {/* ==================== AD ==================== */}
+        <div className="mx-auto max-w-5xl px-5 pb-12 sm:px-8">
+          <AdSlot slotId="lesson_bottom" />
+        </div>
+
         {/* ==================== FINAL EXAM CTA ==================== */}
-        {enrolled && examEnabled && (
+        {enrolled && hasPremiumAccess && examEnabled && (
           <section className="mx-auto max-w-7xl px-5 pb-16 sm:px-8">
             <Reveal>
               <div className="relative overflow-hidden rounded-3xl bg-blue-700 p-10 text-white sm:p-14">
@@ -406,7 +504,7 @@ export default async function CoursePage({
                         : "View progress →"}
                     </Link>
 
-                    {previousAttempt?.passed && (
+                    {previousAttempt?.passed && course.certificate_enabled && (
                       <Link
                         href={`/courses/${course.slug}/certificate`}
                         className="inline-flex rounded-full border border-white/30 px-7 py-3.5 font-extrabold text-white transition hover:bg-white/10"

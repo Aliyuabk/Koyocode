@@ -3,6 +3,8 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import Preloader from "@/components/Preloader";
 import ThemeProvider from "@/components/ThemeProvider";
+import AdConfig from "@/components/AdConfig";
+import { getPublicSettings } from "@/lib/settings";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -36,11 +38,13 @@ const themeInitScript = `
 })();
 `;
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const settings = await getPublicSettings();
+
   return (
     <html
       lang="en"
@@ -52,6 +56,11 @@ export default function RootLayout({
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
       </head>
       <body className="flex min-h-full flex-col bg-white text-slate-900 transition-colors duration-300 dark:bg-slate-950 dark:text-slate-100">
+        <AdConfig
+          enabled={settings.ads_enabled}
+          clientId={settings.ads_client_id}
+          slots={settings.ads_slots}
+        />
         <ThemeProvider>
           <Preloader />
           {children}

@@ -32,6 +32,11 @@ type Course = {
   lessons_count: number;
   is_published: boolean;
   sort_order: number;
+  is_premium: boolean;
+  price_kobo: number;
+  preview_lesson_count: number;
+  certificate_price_kobo: number | null;
+  certificate_enabled: boolean;
 };
 
 type Settings = { passing_score: number; is_enabled: boolean };
@@ -43,6 +48,14 @@ function slugify(s: string) {
     .replace(/[^a-z0-9\s-]/g, "")
     .replace(/\s+/g, "-")
     .replace(/-+/g, "-");
+}
+
+function nairaToKobo(n: number) {
+  return Math.max(0, Math.round(n * 100));
+}
+
+function koboToNaira(k: number) {
+  return k / 100;
 }
 
 export default function CoursesManager({
@@ -79,6 +92,11 @@ export default function CoursesManager({
     tag: "Available",
     sort_order: 0,
     is_published: false,
+    is_premium: false,
+    price_kobo: 0,
+    preview_lesson_count: 0,
+    certificate_price_kobo: null as number | null,
+    certificate_enabled: true,
   });
 
   const categories = useMemo(
@@ -115,6 +133,11 @@ export default function CoursesManager({
       tag: "Available",
       sort_order: (courses.at(-1)?.sort_order ?? 0) + 1,
       is_published: false,
+      is_premium: false,
+      price_kobo: 0,
+      preview_lesson_count: 0,
+      certificate_price_kobo: null,
+      certificate_enabled: true,
     });
     setModalOpen(true);
   }
@@ -133,6 +156,11 @@ export default function CoursesManager({
       tag: c.tag ?? "Available",
       sort_order: c.sort_order,
       is_published: c.is_published,
+      is_premium: c.is_premium ?? false,
+      price_kobo: c.price_kobo ?? 0,
+      preview_lesson_count: c.preview_lesson_count ?? 0,
+      certificate_price_kobo: c.certificate_price_kobo ?? null,
+      certificate_enabled: c.certificate_enabled ?? true,
     });
     setModalOpen(true);
   }
@@ -145,8 +173,22 @@ export default function CoursesManager({
     setBusyId("saving");
 
     const payload = {
-      ...form,
+      title: form.title,
       slug: form.slug || slugify(form.title),
+      category: form.category,
+      level: form.level,
+      duration: form.duration || null,
+      icon: form.icon,
+      color: form.color,
+      description: form.description || null,
+      tag: form.tag,
+      sort_order: form.sort_order,
+      is_published: form.is_published,
+      is_premium: form.is_premium,
+      price_kobo: form.is_premium ? form.price_kobo : 0,
+      preview_lesson_count: form.is_premium ? form.preview_lesson_count : 0,
+      certificate_price_kobo: form.certificate_price_kobo,
+      certificate_enabled: form.certificate_enabled,
     };
 
     const { error } = editing
@@ -238,7 +280,15 @@ export default function CoursesManager({
         category: c.category,
         level: c.level,
         lessons: c.lessons_count,
-        exam: settingsMap[c.id]?.is_enabled ? `Yes (${settingsMap[c.id].passing_score}%)` : "No",
+        premium: c.is_premium ? `Yes (₦${koboToNaira(c.price_kobo)})` : "No",
+        exam: settingsMap[c.id]?.is_enabled
+          ? `Yes (${settingsMap[c.id].passing_score}%)`
+          : "No",
+        certificate: c.certificate_enabled
+          ? c.certificate_price_kobo
+            ? `Yes (₦${koboToNaira(c.certificate_price_kobo)})`
+            : "Yes (default)"
+          : "No",
         status: c.is_published ? "live" : "draft",
       })),
       [
@@ -247,7 +297,9 @@ export default function CoursesManager({
         { key: "category", label: "Category" },
         { key: "level", label: "Level" },
         { key: "lessons", label: "Lessons" },
+        { key: "premium", label: "Premium" },
         { key: "exam", label: "Exam" },
+        { key: "certificate", label: "Certificate" },
         { key: "status", label: "Status" },
       ]
     );
@@ -257,7 +309,7 @@ export default function CoursesManager({
     <div>
       <PageHeader
         title="Courses"
-        subtitle={`${courses.length} total · ${courses.filter((c) => c.is_published).length} published`}
+        subtitle={`${courses.length} total · ${courses.filter((c) => c.is_published).length} published · ${courses.filter((c) => c.is_premium).length} premium`}
         action={<Btn onClick={openCreate}>+ New course</Btn>}
       />
 
@@ -372,10 +424,22 @@ export default function CoursesManager({
                   <Badge tone={c.is_published ? "emerald" : "slate"}>
                     {c.is_published ? "Published" : "Draft"}
                   </Badge>
+                  {c.is_premium && (
+                    <Badge tone="amber">
+                      Premium ₦{koboToNaira(c.price_kobo).toLocaleString()}
+                    </Badge>
+                  )}
+                  {!c.certificate_enabled && (
+                    <Badge tone="slate">No certificate</Badge>
+                  )}
+                  {c.certificate_enabled && c.certificate_price_kobo !== null && (
+                    <Badge tone="purple">
+                      Cert ₦{koboToNaira(c.certificate_price_kobo).toLocaleString()}
+                    </Badge>
+                  )}
                   {s?.is_enabled && (
                     <Badge tone="purple">Exam {s.passing_score}%</Badge>
                   )}
-                  {c.tag && <Badge tone="blue">{c.tag}</Badge>}
                 </div>
 
                 <div className="mt-4 flex flex-wrap gap-2 border-t border-slate-100 pt-4 dark:border-[#1f2a44]">
@@ -460,7 +524,9 @@ export default function CoursesManager({
             <input
               className={inputCls}
               value={form.slug}
-              onChange={(e) => setForm({ ...form, slug: slugify(e.target.value) })}
+              onChange={(e) =>
+                setForm({ ...form, slug: slugify(e.target.value) })
+              }
             />
           </Field>
 
@@ -549,6 +615,112 @@ export default function CoursesManager({
             />
             Publish immediately
           </label>
+
+          {/* PREMIUM */}
+          <div className="space-y-3 rounded-xl border border-amber-100 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-950/30">
+            <p className="text-xs font-extrabold uppercase tracking-wider text-amber-700 dark:text-amber-400">
+              Premium
+            </p>
+
+            <label className="flex items-center gap-2 text-sm font-bold text-amber-800 dark:text-amber-300">
+              <input
+                type="checkbox"
+                checked={form.is_premium}
+                onChange={(e) =>
+                  setForm({ ...form, is_premium: e.target.checked })
+                }
+                className="h-4 w-4 rounded border-amber-300 text-amber-700"
+              />
+              Premium course (requires purchase)
+            </label>
+
+            {form.is_premium && (
+              <div className="grid grid-cols-2 gap-4">
+                <Field label="Price (₦)">
+                  <input
+                    type="number"
+                    min={0}
+                    className={inputCls}
+                    value={koboToNaira(form.price_kobo)}
+                    onChange={(e) =>
+                      setForm({
+                        ...form,
+                        price_kobo: nairaToKobo(Number(e.target.value)),
+                      })
+                    }
+                  />
+                </Field>
+
+                <Field
+                  label="Free preview lessons"
+                  hint="How many lessons are free before the paywall"
+                >
+                  <input
+                    type="number"
+                    min={0}
+                    className={inputCls}
+                    value={form.preview_lesson_count}
+                    onChange={(e) =>
+                      setForm({
+                        ...form,
+                        preview_lesson_count: Math.max(
+                          0,
+                          Number(e.target.value)
+                        ),
+                      })
+                    }
+                  />
+                </Field>
+              </div>
+            )}
+          </div>
+
+          {/* CERTIFICATE */}
+          <div className="space-y-3 rounded-xl border border-emerald-100 bg-emerald-50 p-4 dark:border-emerald-800 dark:bg-emerald-950/30">
+            <p className="text-xs font-extrabold uppercase tracking-wider text-emerald-700 dark:text-emerald-400">
+              Certificate
+            </p>
+
+            <label className="flex items-center gap-2 text-sm font-bold text-emerald-800 dark:text-emerald-300">
+              <input
+                type="checkbox"
+                checked={form.certificate_enabled}
+                onChange={(e) =>
+                  setForm({ ...form, certificate_enabled: e.target.checked })
+                }
+                className="h-4 w-4 rounded border-emerald-300 text-emerald-700"
+              />
+              Certificate available for this course
+            </label>
+
+            {form.certificate_enabled && (
+              <Field
+                label="Certificate price (₦)"
+                hint="Leave blank to use the platform default from /admin/revenue"
+              >
+                <input
+                  type="number"
+                  min={0}
+                  className={inputCls}
+                  value={
+                    form.certificate_price_kobo === null
+                      ? ""
+                      : koboToNaira(form.certificate_price_kobo)
+                  }
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      certificate_price_kobo:
+                        e.target.value === ""
+                          ? null
+                          : nairaToKobo(Number(e.target.value)),
+                    })
+                  }
+                  placeholder="Use platform default"
+                />
+              </Field>
+            )}
+          </div>
         </div>
       </Modal>
 

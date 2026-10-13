@@ -4,6 +4,7 @@ import Footer from "@/components/Footer";
 import CourseGrid from "@/components/CourseGrid";
 import FAQ from "@/components/FAQ";
 import Reveal from "@/components/Reveal";
+import AdSlot from "@/components/AdSlot";
 import { getCourses, getFAQs } from "@/lib/queries";
 
 export default async function Home() {
@@ -161,6 +162,11 @@ export default async function Home() {
             </Reveal>
           </div>
         </section>
+
+        {/* ==================== AD: TOP ==================== */}
+        <div className="mx-auto max-w-5xl px-5 py-6 sm:px-8">
+          <AdSlot slotId="homepage_top" />
+        </div>
 
         {/* ==================== BENEFITS ==================== */}
         <section className="border-y border-blue-100 bg-blue-50 dark:border-[#1f2a44] dark:bg-[#10182b]">
@@ -320,6 +326,11 @@ export default async function Home() {
 
         {/* ==================== FAQ ==================== */}
         <FAQ faqs={faqs} />
+
+        {/* ==================== AD: BOTTOM ==================== */}
+        <div className="mx-auto max-w-5xl px-5 py-6 sm:px-8">
+          <AdSlot slotId="homepage_bottom" />
+        </div>
 
         {/* ==================== NEWSLETTER ==================== */}
         <section className="px-5 pb-20 sm:px-8 lg:pb-28">
