@@ -11,6 +11,7 @@ const nav = [
   { href: "/admin/enrollments", label: "Enrollments", icon: "✍️" },
   { href: "/admin/exams", label: "Exams", icon: "🎯" },
   { href: "/admin/certificates", label: "Certificates", icon: "🏆" },
+  { href: "/admin/revenue", label: "Revenue", icon: "💰" },
   { href: "/admin/notifications", label: "Notifications", icon: "🔔" },
   { href: "/admin/activity", label: "Activity log", icon: "📜" },
 ];

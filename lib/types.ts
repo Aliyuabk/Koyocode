@@ -92,3 +92,52 @@ export type Profile = {
   created_at: string;
   updated_at: string;
 };
+
+export type Payment = {
+  id: string;
+  user_id: string;
+  reference: string;
+  amount_kobo: number;
+  status: "pending" | "success" | "failed" | "refunded";
+  type: "certificate" | "course";
+  target_id: string | null;
+  provider: string;
+  metadata: any;
+  created_at: string;
+  paid_at: string | null;
+  refunded_at: string | null;
+};
+
+export type PlatformSettings = {
+  id: number;
+  site_name: string;
+  support_email: string;
+  certificate_enabled: boolean;
+  certificate_default_price_kobo: number;
+  certificate_require_payment: boolean;
+  certificate_auto_issue_on_pass: boolean;
+  premium_courses_enabled: boolean;
+  premium_default_preview_lessons: number;
+  payments_enabled: boolean;
+  paystack_public_key: string | null;
+  currency: string;
+  ads_enabled: boolean;
+  ads_provider: string | null;
+  ads_client_id: string | null;
+  ads_slots: Record<string, boolean>;
+  ads_skip_for_admins: boolean;
+  ads_skip_on_exam: boolean;
+  ads_skip_on_checkout: boolean;
+  updated_at: string;
+  updated_by: string | null;
+};
+
+// Update Course type — add the new fields
+export type Course = {
+  // ... existing fields
+  is_premium: boolean;
+  price_kobo: number;
+  preview_lesson_count: number;
+  certificate_price_kobo: number | null;
+  certificate_enabled: boolean;
+};
