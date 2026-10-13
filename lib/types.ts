@@ -1,3 +1,6 @@
+/* ============================================================
+   COURSES
+   ============================================================ */
 export type Course = {
   id: string;
   slug: string;
@@ -12,10 +15,18 @@ export type Course = {
   lessons_count: number;
   is_published: boolean;
   sort_order: number;
+  is_premium: boolean;
+  price_kobo: number;
+  preview_lesson_count: number;
+  certificate_price_kobo: number | null;
+  certificate_enabled: boolean;
   created_at?: string;
   updated_at?: string;
 };
 
+/* ============================================================
+   LESSONS
+   ============================================================ */
 export type LessonChapter = {
   time: number;
   title: string;
@@ -57,6 +68,9 @@ export type LessonQuestion = {
   created_at?: string;
 };
 
+/* ============================================================
+   FAQS
+   ============================================================ */
 export type FAQ = {
   id: string;
   question: string;
@@ -64,6 +78,9 @@ export type FAQ = {
   sort_order: number;
 };
 
+/* ============================================================
+   PROGRESS
+   ============================================================ */
 export type Progress = {
   id: string;
   user_id: string;
@@ -74,13 +91,22 @@ export type Progress = {
   updated_at: string;
 };
 
+/* ============================================================
+   ENROLLMENTS
+   ============================================================ */
 export type Enrollment = {
   id: string;
   user_id: string;
   course_id: string;
   enrolled_at: string;
+  paid_at: string | null;
+  payment_reference: string | null;
+  amount_paid_kobo: number | null;
 };
 
+/* ============================================================
+   PROFILES
+   ============================================================ */
 export type Profile = {
   id: string;
   full_name: string | null;
@@ -93,6 +119,23 @@ export type Profile = {
   updated_at: string;
 };
 
+/* ============================================================
+   CERTIFICATES
+   ============================================================ */
+export type Certificate = {
+  id: string;
+  user_id: string;
+  course_id: string;
+  verification_code: string;
+  issued_at: string;
+  is_paid: boolean;
+  payment_reference: string | null;
+  paid_at: string | null;
+};
+
+/* ============================================================
+   PAYMENTS
+   ============================================================ */
 export type Payment = {
   id: string;
   user_id: string;
@@ -108,6 +151,9 @@ export type Payment = {
   refunded_at: string | null;
 };
 
+/* ============================================================
+   PLATFORM SETTINGS
+   ============================================================ */
 export type PlatformSettings = {
   id: number;
   site_name: string;
@@ -132,12 +178,41 @@ export type PlatformSettings = {
   updated_by: string | null;
 };
 
-// Update Course type — add the new fields
-export type Course = {
-  // ... existing fields
-  is_premium: boolean;
-  price_kobo: number;
-  preview_lesson_count: number;
-  certificate_price_kobo: number | null;
-  certificate_enabled: boolean;
+/* ============================================================
+   NOTIFICATIONS
+   ============================================================ */
+export type Notification = {
+  id: string;
+  title: string;
+  message: string;
+  link: string | null;
+  link_label: string | null;
+  audience: "all" | "students" | "admins" | "user";
+  target_user: string | null;
+  send_email: boolean;
+  created_by: string | null;
+  sent_at: string;
+  recipients: number;
+};
+
+export type UserNotification = {
+  id: string;
+  user_id: string;
+  notification_id: string;
+  read: boolean;
+  read_at: string | null;
+  created_at: string;
+};
+
+/* ============================================================
+   ACTIVITY LOG
+   ============================================================ */
+export type ActivityLogEntry = {
+  id: string;
+  user_id: string | null;
+  action: string;
+  entity_type: string | null;
+  entity_id: string | null;
+  metadata: any;
+  created_at: string;
 };

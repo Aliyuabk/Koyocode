@@ -1,6 +1,9 @@
 import { createClient } from "@/lib/supabase/server";
 
 export type PublicSettings = {
+  support_email: string;
+  support_email: string;
+  certificate_require_payment: boolean;
   certificate_enabled: boolean;
   certificate_default_price_kobo: number;
   premium_courses_enabled: boolean;
