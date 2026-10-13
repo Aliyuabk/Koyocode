@@ -1,6 +1,3 @@
-/* ============================================================
-   COURSES
-   ============================================================ */
 export type Course = {
   id: string;
   slug: string;
@@ -24,9 +21,6 @@ export type Course = {
   updated_at?: string;
 };
 
-/* ============================================================
-   LESSONS
-   ============================================================ */
 export type LessonChapter = {
   time: number;
   title: string;
@@ -68,9 +62,6 @@ export type LessonQuestion = {
   created_at?: string;
 };
 
-/* ============================================================
-   FAQS
-   ============================================================ */
 export type FAQ = {
   id: string;
   question: string;
@@ -78,9 +69,6 @@ export type FAQ = {
   sort_order: number;
 };
 
-/* ============================================================
-   PROGRESS
-   ============================================================ */
 export type Progress = {
   id: string;
   user_id: string;
@@ -91,9 +79,6 @@ export type Progress = {
   updated_at: string;
 };
 
-/* ============================================================
-   ENROLLMENTS
-   ============================================================ */
 export type Enrollment = {
   id: string;
   user_id: string;
@@ -104,9 +89,6 @@ export type Enrollment = {
   amount_paid_kobo: number | null;
 };
 
-/* ============================================================
-   PROFILES
-   ============================================================ */
 export type Profile = {
   id: string;
   full_name: string | null;
@@ -119,9 +101,6 @@ export type Profile = {
   updated_at: string;
 };
 
-/* ============================================================
-   CERTIFICATES
-   ============================================================ */
 export type Certificate = {
   id: string;
   user_id: string;
@@ -133,9 +112,6 @@ export type Certificate = {
   paid_at: string | null;
 };
 
-/* ============================================================
-   PAYMENTS
-   ============================================================ */
 export type Payment = {
   id: string;
   user_id: string;
@@ -151,9 +127,6 @@ export type Payment = {
   refunded_at: string | null;
 };
 
-/* ============================================================
-   PLATFORM SETTINGS
-   ============================================================ */
 export type PlatformSettings = {
   id: number;
   site_name: string;
@@ -178,9 +151,6 @@ export type PlatformSettings = {
   updated_by: string | null;
 };
 
-/* ============================================================
-   NOTIFICATIONS
-   ============================================================ */
 export type Notification = {
   id: string;
   title: string;
@@ -204,9 +174,6 @@ export type UserNotification = {
   created_at: string;
 };
 
-/* ============================================================
-   ACTIVITY LOG
-   ============================================================ */
 export type ActivityLogEntry = {
   id: string;
   user_id: string | null;
