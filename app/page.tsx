@@ -171,13 +171,6 @@ export default async function Home() {
           </div>
         </section>
 
-        {/* ==================== AD: HOMEPAGE TOP ==================== */}
-        {adsOn && slots.homepage_top && (
-          <section className="mx-auto max-w-5xl px-5 py-6 sm:px-8">
-            <AdSlotAdsterra slot="728x90" />
-          </section>
-        )}
-
         {/* ==================== BENEFITS ==================== */}
         <section className="border-y border-blue-100 bg-blue-50 dark:border-[#1f2a44] dark:bg-[#10182b]">
           <div className="mx-auto grid max-w-7xl gap-6 px-5 py-8 sm:grid-cols-2 sm:px-8 lg:grid-cols-4">
@@ -337,13 +330,6 @@ export default async function Home() {
         {/* ==================== FAQ ==================== */}
         <FAQ faqs={faqs} />
 
-        {/* ==================== AD: HOMEPAGE BOTTOM ==================== */}
-        {adsOn && slots.homepage_bottom && (
-          <section className="mx-auto max-w-5xl px-5 py-6 sm:px-8">
-            <AdSlotAdsterra slot="300x250" />
-          </section>
-        )}
-
         {/* ==================== NEWSLETTER ==================== */}
         <section className="px-5 pb-20 sm:px-8 lg:pb-28">
           <Reveal>
@@ -377,6 +363,15 @@ export default async function Home() {
             </div>
           </Reveal>
         </section>
+
+        {/* ==================== AD: HOMEPAGE BOTTOM ==================== */}
+        {adsOn && slots.homepage_bottom && (
+          <section className="border-t border-slate-100 bg-slate-50/50 dark:border-[#1f2a44] dark:bg-[#0e1526]/50">
+            <div className="mx-auto flex max-w-5xl justify-center px-5 py-8 sm:px-8">
+              <AdSlotAdsterra slot="300x250" />
+            </div>
+          </section>
+        )}
       </main>
 
       <Footer />

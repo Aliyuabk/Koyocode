@@ -49,11 +49,11 @@ export default function AdSlotAdsterra({
   useEffect(() => {
     if (!unit || !ref.current) return;
 
-    // Clear previous content (important for React strict mode + remounts)
+    // Clear previous content (React strict mode remounts)
     ref.current.innerHTML = "";
 
     if (unit.type === "native") {
-      // Native Banner — script + container div
+      // Native Banner: async script + container div
       const script = document.createElement("script");
       script.async = true;
       script.setAttribute("data-cfasync", "false");
@@ -64,7 +64,7 @@ export default function AdSlotAdsterra({
       container.id = `container-${unit.key}`;
       ref.current.appendChild(container);
     } else {
-      // Iframe sync — atOptions + invoke script
+      // Iframe sync: atOptions + invoke script
       const config = document.createElement("script");
       config.type = "text/javascript";
       config.text = `
@@ -88,12 +88,16 @@ export default function AdSlotAdsterra({
   if (!unit) return null;
 
   return (
-    <div className={`mx-auto flex flex-col items-center ${className}`}>
+    <div
+      className={`flex flex-col items-center overflow-hidden ${className}`}
+      style={{ maxWidth: "100%" }}
+    >
       <span className="mb-1 text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-[#64748b]">
         Advertisement
       </span>
       <div
         ref={ref}
+        className="overflow-hidden"
         style={
           unit.type === "native"
             ? { width: "100%", maxWidth: "728px" }

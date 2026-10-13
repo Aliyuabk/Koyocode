@@ -9,24 +9,30 @@ import { getPublicSettings } from "@/lib/settings";
 export default async function CoursesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string }>;
+  searchParams: Promise<{ q?: string; filter?: string }>;
 }) {
   const params = await searchParams;
   const query = params.q?.trim() ?? "";
+  const filter = params.filter?.trim() ?? "all";
 
   const [all, settings] = await Promise.all([
     getCourses(),
     getPublicSettings(),
   ]);
 
-  const courses = query
-    ? all.filter(
-        (c) =>
-          c.title.toLowerCase().includes(query.toLowerCase()) ||
-          (c.description ?? "").toLowerCase().includes(query.toLowerCase()) ||
-          c.category.toLowerCase().includes(query.toLowerCase())
-      )
-    : all;
+  let courses = all;
+
+  if (query) {
+    courses = courses.filter(
+      (c) =>
+        c.title.toLowerCase().includes(query.toLowerCase()) ||
+        (c.description ?? "").toLowerCase().includes(query.toLowerCase()) ||
+        c.category.toLowerCase().includes(query.toLowerCase())
+    );
+  }
+
+  if (filter === "free") courses = courses.filter((c) => !c.is_premium);
+  if (filter === "premium") courses = courses.filter((c) => c.is_premium);
 
   const adsOn = settings.ads_enabled;
   const slots = settings.ads_slots ?? {};
@@ -57,7 +63,30 @@ export default async function CoursesPage({
           </p>
         </div>
 
-        <div className="mt-10 grid gap-8 lg:grid-cols-[1fr_280px]">
+        {/* FILTER CHIPS */}
+        {!query && (
+          <div className="mt-6 flex flex-wrap gap-2">
+            {[
+              { key: "all", label: "All courses" },
+              { key: "free", label: "Free only" },
+              { key: "premium", label: "Premium" },
+            ].map((f) => (
+              <Link
+                key={f.key}
+                href={f.key === "all" ? "/courses" : `/courses?filter=${f.key}`}
+                className={`rounded-full px-4 py-2 text-sm font-bold transition ${
+                  filter === f.key
+                    ? "bg-blue-700 text-white dark:bg-blue-600"
+                    : "border border-slate-200 bg-white text-slate-600 hover:border-blue-200 hover:text-blue-700 dark:border-[#1f2a44] dark:bg-[#0e1526] dark:text-[#cbd5e1]"
+                }`}
+              >
+                {f.label}
+              </Link>
+            ))}
+          </div>
+        )}
+
+        <div className="mt-8 grid gap-8 lg:grid-cols-[1fr_280px]">
           {/* MAIN GRID */}
           <div>
             {courses.length === 0 ? (
@@ -103,14 +132,30 @@ export default async function CoursesPage({
                   Learn in Hausa
                 </p>
                 <p className="mt-3 text-sm leading-7 text-slate-700 dark:text-[#cbd5e1]">
-                  Every lesson is taught in simple Hausa and English. Start free,
-                  learn at your pace, and earn a verifiable certificate.
+                  Every lesson is taught in simple Hausa and English. Start
+                  free, learn at your pace, and earn a verifiable certificate.
                 </p>
                 <Link
                   href="/#how-it-works"
                   className="mt-4 inline-flex font-bold text-blue-700 hover:text-blue-900 dark:text-blue-400"
                 >
                   How it works →
+                </Link>
+              </div>
+
+              <div className="rounded-2xl border border-amber-100 bg-amber-50 p-6 dark:border-amber-800/40 dark:bg-amber-950/20">
+                <p className="text-xs font-extrabold uppercase tracking-wider text-amber-700 dark:text-amber-400">
+                  ⭐ Premium courses
+                </p>
+                <p className="mt-3 text-sm leading-7 text-slate-700 dark:text-[#cbd5e1]">
+                  Unlock advanced lessons, real-world projects, and certificate
+                  eligibility. One-time payment, lifetime access.
+                </p>
+                <Link
+                  href="/courses?filter=premium"
+                  className="mt-4 inline-flex font-bold text-amber-700 hover:text-amber-900 dark:text-amber-400"
+                >
+                  See premium courses →
                 </Link>
               </div>
             </div>
