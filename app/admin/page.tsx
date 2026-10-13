@@ -265,7 +265,7 @@ export default async function AdminOverview() {
                 <span className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-blue-600 to-blue-800 text-xs font-black text-white">
                   {(u.full_name ?? "U")
                     .split(" ")
-                    .map((s) => s[0])
+                    .map((s: string) => s[0])
                     .join("")
                     .slice(0, 2)
                     .toUpperCase()}
