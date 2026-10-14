@@ -18,17 +18,20 @@ const SUPPORT_EMAIL =
    ============================================================ */
 function validateEmail(email: string) {
   const cleaned = email.trim().toLowerCase();
+
   if (!EMAIL_RE.test(cleaned)) {
-    return { ok: false, error: "Please enter a valid email address." };
+    return { ok: false as const, error: "Please enter a valid email address." };
   }
+
   const domain = cleaned.split("@")[1];
   if (disposableDomains.includes(domain)) {
     return {
-      ok: false,
+      ok: false as const,
       error: "Please use a real email address (not a temporary one).",
     };
   }
-  return { ok: true, email: cleaned };
+
+  return { ok: true as const, email: cleaned };
 }
 
 /* ============================================================
@@ -92,6 +95,7 @@ export async function signup(
     return { error: "Full name must be at least 2 characters." };
   }
 
+  // Validate email syntax + block disposable
   const emailCheck = validateEmail(rawEmail);
   if (!emailCheck.ok) {
     return { error: emailCheck.error };
@@ -145,16 +149,15 @@ export async function forgotPassword(
   if (!emailCheck.ok) {
     return { error: emailCheck.error };
   }
+  const email = emailCheck.email;
 
   const supabase = await createClient();
-
   const siteUrl =
     process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
 
-  const { error } = await supabase.auth.resetPasswordForEmail(
-    emailCheck.email,
-    { redirectTo: `${siteUrl}/reset-password` }
-  );
+  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: `${siteUrl}/reset-password`,
+  });
 
   if (error) {
     console.error("[forgot-password] error:", error.message);
