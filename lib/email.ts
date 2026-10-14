@@ -1,29 +1,30 @@
 import nodemailer, { type Transporter } from "nodemailer";
 
 /* ============================================================
-   SMTP TRANSPORTER (singleton)
+   GMAIL SMTP TRANSPORTER (singleton)
    ============================================================ */
 let cachedTransporter: Transporter | null = null;
 
 export function getTransporter(): Transporter {
   if (cachedTransporter) return cachedTransporter;
 
-  const host = process.env.SMTP_HOST;
-  const port = Number(process.env.SMTP_PORT ?? 465);
-  const user = process.env.SMTP_USER;
-  const pass = process.env.SMTP_PASSWORD;
+  const user = process.env.GMAIL_USER;
+  const pass = process.env.GMAIL_APP_PASSWORD;
 
-  if (!host || !user || !pass) {
+  if (!user || !pass) {
     throw new Error(
-      "SMTP not configured. Set SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD in .env.local and Vercel."
+      "Gmail SMTP not configured. Set GMAIL_USER and GMAIL_APP_PASSWORD in .env.local."
     );
   }
 
   cachedTransporter = nodemailer.createTransport({
-    host,
-    port,
-    secure: port === 465,
-    auth: { user, pass },
+    host: "smtp.gmail.com",
+    port: 465,
+    secure: true,
+    auth: {
+      user,
+      pass,
+    },
   });
 
   return cachedTransporter;
@@ -33,8 +34,8 @@ export function getTransporter(): Transporter {
    FROM ADDRESS
    ============================================================ */
 export function getFromAddress() {
-  const name = process.env.SMTP_FROM_NAME ?? "KoyoCode";
-  const user = process.env.SMTP_USER ?? "koyocode@kowagurutech.ng";
+  const name = process.env.EMAIL_FROM_NAME ?? "KoyoCode";
+  const user = process.env.GMAIL_USER ?? "koyocode@kowagurutech.ng";
   return `"${name}" <${user}>`;
 }
 
