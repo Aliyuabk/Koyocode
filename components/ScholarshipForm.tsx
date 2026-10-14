@@ -13,6 +13,9 @@ type Course = {
   price_kobo: number;
 };
 
+// Simple, reliable email regex (matches what browsers use)
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 export default function ScholarshipForm({ courses }: { courses: Course[] }) {
   const supabase = createClient();
 
@@ -28,23 +31,35 @@ export default function ScholarshipForm({ courses }: { courses: Course[] }) {
   const [motivation, setMotivation] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
+  const [emailError, setEmailError] = useState<string | null>(null);
 
   const premiumCourses = courses.filter((c) => c.is_premium);
   const otherCourses = courses.filter((c) => !c.is_premium);
 
+  // Live validation
+  const isEmailValid = EMAIL_RE.test(email.trim());
+  const isNameValid = fullName.trim().length >= 2;
+  const isMotivationValid = motivation.trim().length >= 50;
+  const isFormValid = isEmailValid && isNameValid && isMotivationValid;
+
   async function submit() {
-    if (!fullName.trim() || !email.trim() || !motivation.trim()) {
-      toast("Please fill in all required fields", "err");
+    if (!isEmailValid) {
+      toast("Please enter a valid email address", "err");
       return;
     }
-    if (motivation.trim().length < 50) {
-      toast("Please write at least 50 characters explaining your motivation", "err");
+    if (!isNameValid) {
+      toast("Please enter your full name", "err");
+      return;
+    }
+    if (!isMotivationValid) {
+      toast("Please write at least 50 characters", "err");
       return;
     }
 
     setSubmitting(true);
+    setEmailError(null);
 
-    const { error } = await supabase
+    const { data: inserted, error } = await supabase
       .from("scholarship_applications")
       .insert({
         full_name: fullName.trim(),
@@ -56,12 +71,26 @@ export default function ScholarshipForm({ courses }: { courses: Course[] }) {
         motivation: motivation.trim(),
         course_id: courseId || null,
         status: "pending",
-      });
+      })
+      .select("id")
+      .single();
 
     setSubmitting(false);
 
     if (error) {
+      // Friendly error for duplicate emails
+      if (error.code === "23505") {
+        setEmailError("This email has already applied.");
+        toast("This email has already applied.", "err");
+        return;
+      }
+      setEmailError(error.message);
       toast(error.message, "err");
+      return;
+    }
+
+    if (!inserted) {
+      toast("Submission failed — please try again", "err");
       return;
     }
 
@@ -76,12 +105,13 @@ export default function ScholarshipForm({ courses }: { courses: Course[] }) {
           Application received!
         </h2>
         <p className="mx-auto mt-3 max-w-md text-sm text-emerald-700 dark:text-emerald-300">
-          We review every application personally. If you&apos;re selected, you&apos;ll
-          receive an email with your login details within 3 business days.
+          We review every application personally. If you&apos;re selected,
+          you&apos;ll receive an email with your login details within 3
+          business days.
         </p>
         <p className="mt-3 text-xs text-emerald-600 dark:text-emerald-400">
           Check your spam folder too. From:{" "}
-          <strong>aliyuabubakar11117@gmail.com</strong>
+          <strong>koyocode@kowagurutech.ng</strong>
         </p>
         <Link
           href="/"
@@ -110,15 +140,36 @@ export default function ScholarshipForm({ courses }: { courses: Course[] }) {
         </Field>
 
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Email address *">
-            <input
-              type="email"
-              className={inputCls}
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="you@example.com"
-            />
-          </Field>
+          <div>
+            <Field label="Email address *">
+              <input
+                type="email"
+                className={inputCls}
+                value={email}
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  setEmailError(null);
+                }}
+                onBlur={() => {
+                  if (email.trim() && !isEmailValid) {
+                    setEmailError("Please enter a valid email address");
+                  }
+                }}
+                placeholder="you@example.com"
+              />
+            </Field>
+            {emailError && (
+              <p className="mt-1.5 text-xs font-medium text-red-600 dark:text-red-400">
+                ⚠ {emailError}
+              </p>
+            )}
+            {email.trim() && isEmailValid && !emailError && (
+              <p className="mt-1.5 text-xs font-medium text-emerald-600 dark:text-emerald-400">
+                ✓ Valid email format
+              </p>
+            )}
+          </div>
+
           <Field label="Phone / WhatsApp">
             <input
               className={inputCls}
@@ -221,9 +272,15 @@ export default function ScholarshipForm({ courses }: { courses: Course[] }) {
           </span>
         </label>
 
-        <Btn onClick={submit} disabled={submitting}>
+        <Btn onClick={submit} disabled={submitting || !isFormValid}>
           {submitting ? "Submitting…" : "Submit application →"}
         </Btn>
+
+        {!isFormValid && (
+          <p className="text-center text-xs text-slate-500 dark:text-[#94a3b8]">
+            Please complete all required fields to enable submission.
+          </p>
+        )}
       </div>
     </div>
   );

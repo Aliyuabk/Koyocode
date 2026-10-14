@@ -4,12 +4,32 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { isStrongEnough } from "@/lib/password";
+import disposableDomains from "disposable-email-domains";
 
 export type ActionState = { error?: string; success?: string } | null;
 export type ProfileState = { error?: string; success?: string } | null;
 
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const SUPPORT_EMAIL =
   process.env.SMTP_USER ?? "koyocode@kowagurutech.ng";
+
+/* ============================================================
+   VALIDATION HELPERS
+   ============================================================ */
+function validateEmail(email: string) {
+  const cleaned = email.trim().toLowerCase();
+  if (!EMAIL_RE.test(cleaned)) {
+    return { ok: false, error: "Please enter a valid email address." };
+  }
+  const domain = cleaned.split("@")[1];
+  if (disposableDomains.includes(domain)) {
+    return {
+      ok: false,
+      error: "Please use a real email address (not a temporary one).",
+    };
+  }
+  return { ok: true, email: cleaned };
+}
 
 /* ============================================================
    LOGIN
@@ -62,15 +82,22 @@ export async function signup(
   formData: FormData
 ): Promise<ActionState> {
   const full_name = String(formData.get("full_name") ?? "").trim();
-  const email = String(formData.get("email") ?? "").trim();
+  const rawEmail = String(formData.get("email") ?? "");
   const password = String(formData.get("password") ?? "");
 
-  if (!full_name || !email || !password) {
+  if (!full_name || !rawEmail || !password) {
     return { error: "Please fill in all fields." };
   }
   if (full_name.length < 2) {
     return { error: "Full name must be at least 2 characters." };
   }
+
+  const emailCheck = validateEmail(rawEmail);
+  if (!emailCheck.ok) {
+    return { error: emailCheck.error };
+  }
+  const email = emailCheck.email;
+
   if (!isStrongEnough(password)) {
     return {
       error:
@@ -108,10 +135,15 @@ export async function forgotPassword(
   _prev: ActionState,
   formData: FormData
 ): Promise<ActionState> {
-  const email = String(formData.get("email") ?? "").trim();
+  const rawEmail = String(formData.get("email") ?? "").trim();
 
-  if (!email) {
+  if (!rawEmail) {
     return { error: "Please enter your email address." };
+  }
+
+  const emailCheck = validateEmail(rawEmail);
+  if (!emailCheck.ok) {
+    return { error: emailCheck.error };
   }
 
   const supabase = await createClient();
@@ -119,9 +151,10 @@ export async function forgotPassword(
   const siteUrl =
     process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
 
-  const { error } = await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: `${siteUrl}/reset-password`,
-  });
+  const { error } = await supabase.auth.resetPasswordForEmail(
+    emailCheck.email,
+    { redirectTo: `${siteUrl}/reset-password` }
+  );
 
   if (error) {
     console.error("[forgot-password] error:", error.message);

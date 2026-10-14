@@ -43,7 +43,14 @@ export async function updateSession(request: NextRequest) {
       return NextResponse.redirect(url);
     }
 
-    // Logged in → check if they must change their password
+    // Email not confirmed → verify email page
+    if (!user.email_confirmed_at) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/verify-email";
+      return NextResponse.redirect(url);
+    }
+
+    // Password change required → change password page
     const { data: profile } = await supabase
       .from("profiles")
       .select("password_changed")

@@ -9,10 +9,22 @@ import Alert from "@/components/ui/Alert";
 import PasswordStrength from "@/components/ui/PasswordStrength";
 import { MailIcon, LockIcon, UserIcon } from "@/components/ui/Icons";
 import ThemeSwitcher from "@/components/ThemeSwitcher";
+import { isStrongEnough } from "@/lib/password";
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export default function SignupPage() {
   const [state, formAction] = useActionState<ActionState, FormData>(signup, null);
+
+  const [fullName, setFullName] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [agreed, setAgreed] = useState(false);
+
+  const isEmailValid = EMAIL_RE.test(email.trim());
+  const isNameValid = fullName.trim().length >= 2;
+  const isPasswordValid = isStrongEnough(password);
+  const isFormValid = isEmailValid && isNameValid && isPasswordValid && agreed;
 
   return (
     <div className="relative flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-50 via-blue-50/40 to-white px-5 py-10 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950">
@@ -59,18 +71,34 @@ export default function SignupPage() {
               autoComplete="name"
               required
               icon={<UserIcon />}
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
             />
 
-            <Input
-              id="email"
-              name="email"
-              type="email"
-              label="Email address"
-              placeholder="you@example.com"
-              autoComplete="email"
-              required
-              icon={<MailIcon />}
-            />
+            <div>
+              <Input
+                id="email"
+                name="email"
+                type="email"
+                label="Email address"
+                placeholder="you@example.com"
+                autoComplete="email"
+                required
+                icon={<MailIcon />}
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+              />
+              {email.trim() && !isEmailValid && (
+                <p className="mt-1.5 text-xs font-medium text-red-600 dark:text-red-400">
+                  ⚠ Please enter a valid email address
+                </p>
+              )}
+              {email.trim() && isEmailValid && (
+                <p className="mt-1.5 text-xs font-medium text-emerald-600 dark:text-emerald-400">
+                  ✓ Valid email format
+                </p>
+              )}
+            </div>
 
             <div>
               <Input
@@ -93,6 +121,8 @@ export default function SignupPage() {
               <input
                 type="checkbox"
                 required
+                checked={agreed}
+                onChange={(e) => setAgreed(e.target.checked)}
                 className="mt-0.5 h-4 w-4 rounded border-slate-300 text-blue-700 focus:ring-blue-500 dark:border-[#1f2a44] dark:bg-[#0e1526]"
               />
               <span>
@@ -115,8 +145,16 @@ export default function SignupPage() {
             </label>
 
             <div className="pt-2">
-              <Button type="submit">Create account →</Button>
+              <Button type="submit" disabled={!isFormValid}>
+                Create account →
+              </Button>
             </div>
+
+            {!isFormValid && (
+              <p className="text-center text-xs text-slate-500 dark:text-[#94a3b8]">
+                Please complete all required fields to enable submission.
+              </p>
+            )}
           </form>
 
           <div className="my-7 flex items-center gap-3">
