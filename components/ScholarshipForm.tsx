@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/client";
 import { Field, inputCls, Btn, toast } from "@/components/admin/ui";
 import {
   sendVerificationCode,
@@ -20,9 +19,6 @@ type Course = {
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export default function ScholarshipForm({ courses }: { courses: Course[] }) {
-  const supabase = createClient();
-
-  // Form state
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
@@ -34,14 +30,11 @@ export default function ScholarshipForm({ courses }: { courses: Course[] }) {
   );
   const [motivation, setMotivation] = useState("");
 
-  // Verification state
   const [code, setCode] = useState("");
-  const [verifying, setVerifying] = useState(false);
   const [codeSent, setCodeSent] = useState(false);
   const [emailVerified, setEmailVerified] = useState(false);
-  const [verifiedSignature, setVerifiedSignature] = useState<string | null>(null);
-
   const [sending, setSending] = useState(false);
+  const [verifying, setVerifying] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -53,63 +46,42 @@ export default function ScholarshipForm({ courses }: { courses: Course[] }) {
   const isNameValid = fullName.trim().length >= 2;
   const isMotivationValid = motivation.trim().length >= 50;
   const isFormValid =
-    isEmailShapeValid &&
-    isNameValid &&
-    isMotivationValid &&
-    emailVerified;
+    isEmailShapeValid && isNameValid && isMotivationValid && emailVerified;
 
-  /* ============================================================
-     SEND CODE
-     ============================================================ */
   async function handleSendCode() {
     setError(null);
-
     if (!isEmailShapeValid) {
       setError("Please enter a valid email address.");
       return;
     }
-
     setSending(true);
     const res = await sendVerificationCode(email);
     setSending(false);
-
     if (!res.ok) {
       setError(res.error ?? "Failed to send code.");
       return;
     }
-
     setCodeSent(true);
     toast("Verification code sent. Check your inbox.");
   }
 
-  /* ============================================================
-     VERIFY CODE
-     ============================================================ */
   async function handleVerifyCode() {
     setError(null);
-
     if (!/^\d{6}$/.test(code.trim())) {
       setError("Please enter the 6-digit code.");
       return;
     }
-
     setVerifying(true);
     const res = await verifyCode(email, code);
     setVerifying(false);
-
     if (!res.ok) {
       setError(res.error ?? "Verification failed.");
       return;
     }
-
     setEmailVerified(true);
-    setVerifiedSignature(res.signature ?? null);
     toast("Email verified ✓");
   }
 
-  /* ============================================================
-     SUBMIT APPLICATION
-     ============================================================ */
   async function submit() {
     setError(null);
 
@@ -124,44 +96,37 @@ export default function ScholarshipForm({ courses }: { courses: Course[] }) {
 
     setSubmitting(true);
 
-    const { data: inserted, error: insertErr } = await supabase
-      .from("scholarship_applications")
-      .insert({
-        full_name: fullName.trim(),
-        email: email.trim().toLowerCase(),
-        phone: phone.trim() || null,
-        city: city.trim() || null,
-        age_range: ageRange,
-        background,
-        motivation: motivation.trim(),
-        course_id: courseId || null,
-        status: "pending",
-      })
-      .select("id")
-      .single();
+    try {
+      const res = await fetch("/api/scholarship/apply", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          full_name: fullName.trim(),
+          email: email.trim().toLowerCase(),
+          phone: phone.trim() || undefined,
+          city: city.trim() || undefined,
+          age_range: ageRange,
+          background,
+          motivation: motivation.trim(),
+          course_id: courseId || undefined,
+        }),
+      });
 
-    setSubmitting(false);
+      const data = await res.json();
+      setSubmitting(false);
 
-    if (insertErr) {
-      if (insertErr.code === "23505") {
-        setError("This email has already applied.");
+      if (!res.ok) {
+        setError(data.error ?? "Submission failed. Please try again.");
         return;
       }
-      setError(insertErr.message);
-      return;
-    }
 
-    if (!inserted) {
-      setError("Submission failed — please try again.");
-      return;
+      setDone(true);
+    } catch (e: any) {
+      setSubmitting(false);
+      setError(e.message ?? "Network error");
     }
-
-    setDone(true);
   }
 
-  /* ============================================================
-     SUCCESS SCREEN
-     ============================================================ */
   if (done) {
     return (
       <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-8 text-center dark:border-emerald-800 dark:bg-emerald-950/40">
@@ -170,8 +135,9 @@ export default function ScholarshipForm({ courses }: { courses: Course[] }) {
           Application received!
         </h2>
         <p className="mx-auto mt-3 max-w-md text-sm text-emerald-700 dark:text-emerald-300">
-          We review every application personally. If you&apos;re selected, you&apos;ll
-          receive an email with your login details within 3 business days.
+          We review every application personally. If you&apos;re selected,
+          you&apos;ll receive an email with your login details within 3
+          business days.
         </p>
         <Link
           href="/"
@@ -183,9 +149,6 @@ export default function ScholarshipForm({ courses }: { courses: Course[] }) {
     );
   }
 
-  /* ============================================================
-     MAIN FORM
-     ============================================================ */
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-6 sm:p-8 dark:border-[#1f2a44] dark:bg-[#131c33]">
       <p className="text-xs font-extrabold uppercase tracking-wider text-blue-700 dark:text-blue-400">
@@ -199,7 +162,6 @@ export default function ScholarshipForm({ courses }: { courses: Course[] }) {
       )}
 
       <div className="mt-5 space-y-4">
-        {/* NAME */}
         <Field label="Full name *">
           <input
             className={inputCls}
@@ -209,12 +171,10 @@ export default function ScholarshipForm({ courses }: { courses: Course[] }) {
           />
         </Field>
 
-        {/* EMAIL + VERIFY */}
         <div>
           <label className="mb-1.5 block text-sm font-semibold text-slate-700 dark:text-[#cbd5e1]">
             Email address *
           </label>
-
           <div className="flex gap-2">
             <input
               type="email"
@@ -240,7 +200,6 @@ export default function ScholarshipForm({ courses }: { courses: Course[] }) {
               </button>
             )}
           </div>
-
           {emailVerified && (
             <p className="mt-1.5 text-xs font-bold text-emerald-600 dark:text-emerald-400">
               ✓ Email verified
@@ -248,7 +207,6 @@ export default function ScholarshipForm({ courses }: { courses: Course[] }) {
           )}
         </div>
 
-        {/* CODE ENTRY */}
         {codeSent && !emailVerified && (
           <div>
             <label className="mb-1.5 block text-sm font-semibold text-slate-700 dark:text-[#cbd5e1]">
@@ -279,7 +237,6 @@ export default function ScholarshipForm({ courses }: { courses: Course[] }) {
           </div>
         )}
 
-        {/* PHONE */}
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Phone / WhatsApp">
             <input
@@ -299,7 +256,6 @@ export default function ScholarshipForm({ courses }: { courses: Course[] }) {
           </Field>
         </div>
 
-        {/* AGE + BACKGROUND */}
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Age range">
             <select
@@ -330,7 +286,6 @@ export default function ScholarshipForm({ courses }: { courses: Course[] }) {
           </Field>
         </div>
 
-        {/* COURSE */}
         <Field label="Which course do you want? *">
           <select
             className={inputCls}
@@ -359,7 +314,6 @@ export default function ScholarshipForm({ courses }: { courses: Course[] }) {
           </select>
         </Field>
 
-        {/* MOTIVATION */}
         <Field
           label="Why do you want this scholarship? *"
           hint={`${motivation.length} characters · minimum 50`}
@@ -373,7 +327,6 @@ export default function ScholarshipForm({ courses }: { courses: Course[] }) {
           />
         </Field>
 
-        {/* COMMIT */}
         <label className="flex items-start gap-2.5 text-sm text-slate-600 dark:text-[#94a3b8]">
           <input
             type="checkbox"
@@ -386,7 +339,6 @@ export default function ScholarshipForm({ courses }: { courses: Course[] }) {
           </span>
         </label>
 
-        {/* SUBMIT */}
         <Btn onClick={submit} disabled={submitting || !isFormValid}>
           {submitting ? "Submitting…" : "Submit application →"}
         </Btn>

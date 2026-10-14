@@ -2,7 +2,6 @@
 
 import { createClient } from "@supabase/supabase-js";
 import { sendEmail, escapeHtml } from "@/lib/email";
-import crypto from "crypto";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -18,18 +17,18 @@ function generateCode() {
 }
 
 /* ============================================================
-   STEP 1 — Send the code
+   SEND CODE
    ============================================================ */
 export async function sendVerificationCode(email: string) {
   const cleaned = email.trim().toLowerCase();
 
   if (!EMAIL_RE.test(cleaned)) {
-    return { ok: false, error: "Please enter a valid email address." };
+    return { ok: false as const, error: "Please enter a valid email address." };
   }
 
   const admin = getAdmin();
 
-  // Rate limit: no more than 1 code per 60 seconds per email
+  // Rate limit: 1 code per 60 seconds per email
   const { data: recent } = await admin
     .from("email_verifications")
     .select("created_at")
@@ -41,12 +40,12 @@ export async function sendVerificationCode(email: string) {
 
   if (recent) {
     return {
-      ok: false,
-      error: "Please wait a minute before requesting another code.",
+      ok: false as const,
+      error: "Please wait 60 seconds before requesting another code.",
     };
   }
 
-  // Invalidate old unused codes for this email
+  // Invalidate old codes
   await admin
     .from("email_verifications")
     .update({ used: true })
@@ -54,9 +53,8 @@ export async function sendVerificationCode(email: string) {
     .eq("purpose", "scholarship")
     .eq("used", false);
 
-  // Create a new code
+  // Create new
   const code = generateCode();
-
   const { error: insErr } = await admin.from("email_verifications").insert({
     email: cleaned,
     code,
@@ -65,10 +63,13 @@ export async function sendVerificationCode(email: string) {
 
   if (insErr) {
     console.error("[sendVerificationCode] insert error:", insErr.message);
-    return { ok: false, error: "Could not generate code. Please try again." };
+    return {
+      ok: false as const,
+      error: "Could not generate code. Please try again.",
+    };
   }
 
-  // Send the email
+  // Send
   try {
     await sendEmail({
       to: cleaned,
@@ -78,31 +79,31 @@ export async function sendVerificationCode(email: string) {
   } catch (e: any) {
     console.error("[sendVerificationCode] email error:", e?.message);
     return {
-      ok: false,
+      ok: false as const,
       error:
         "We couldn't send the code right now. Please try again in a few minutes.",
     };
   }
 
-  return { ok: true };
+  return { ok: true as const };
 }
 
 /* ============================================================
-   STEP 2 — Verify the code
+   VERIFY CODE
    ============================================================ */
 export async function verifyCode(email: string, code: string) {
   const cleaned = email.trim().toLowerCase();
-  const trimmedCode = code.trim();
+  const trimmed = code.trim();
 
-  if (!EMAIL_RE.test(cleaned) || !/^\d{6}$/.test(trimmedCode)) {
-    return { ok: false, error: "Invalid code." };
+  if (!EMAIL_RE.test(cleaned) || !/^\d{6}$/.test(trimmed)) {
+    return { ok: false as const, error: "Invalid code." };
   }
 
   const admin = getAdmin();
 
   const { data: row } = await admin
     .from("email_verifications")
-    .select("id, code, expires_at, used")
+    .select("id, code, expires_at")
     .eq("email", cleaned)
     .eq("purpose", "scholarship")
     .eq("used", false)
@@ -111,31 +112,29 @@ export async function verifyCode(email: string, code: string) {
     .maybeSingle();
 
   if (!row) {
-    return { ok: false, error: "No active code. Please request a new one." };
+    return {
+      ok: false as const,
+      error: "No active code. Please request a new one.",
+    };
   }
 
   if (new Date(row.expires_at) < new Date()) {
-    return { ok: false, error: "This code has expired. Request a new one." };
+    return {
+      ok: false as const,
+      error: "This code has expired. Please request a new one.",
+    };
   }
 
-  if (row.code !== trimmedCode) {
-    return { ok: false, error: "Incorrect code." };
+  if (row.code !== trimmed) {
+    return { ok: false as const, error: "Incorrect code." };
   }
 
-  // Mark as used
   await admin
     .from("email_verifications")
     .update({ used: true })
     .eq("id", row.id);
 
-  // Return a signature that the client sends with the form
-  // (so the insert policy can check it was verified)
-  const signature = crypto
-    .createHmac("sha256", process.env.SUPABASE_SERVICE_ROLE_KEY!)
-    .update(`${cleaned}:${row.id}`)
-    .digest("hex");
-
-  return { ok: true, email: cleaned, signature };
+  return { ok: true as const, email: cleaned };
 }
 
 /* ============================================================
