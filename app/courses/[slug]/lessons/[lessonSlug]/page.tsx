@@ -33,7 +33,9 @@ export default async function LessonPage({
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user) redirect(`/login?next=/courses/${slug}/lessons/${lessonSlug}`);
+  if (!user) {
+    redirect(`/login?next=/courses/${slug}/lessons/${lessonSlug}`);
+  }
 
   const { data: enrollment } = await supabase
     .from("enrollments")
@@ -72,19 +74,19 @@ export default async function LessonPage({
   const thisCompleted = progressMap[lesson.id] ?? false;
   const concepts = lesson.concepts ?? [];
 
+  // Quick check has enough data to render?
   const hasQuickCheck =
     lesson.quick_check_question &&
     Array.isArray(lesson.quick_check_options) &&
     lesson.quick_check_options.length >= 2 &&
     typeof lesson.quick_check_correct_index === "number";
 
+  // Exercise has enough data to render?
   const hasExercise =
     lesson.exercise_type !== "none" &&
     lesson.exercise_prompt &&
     lesson.exercise_starter &&
     lesson.exercise_solution;
-
-  const hasVideo = !!lesson.youtube_id;
 
   const lessonsForSidebar = lessons.map((l) => ({
     id: l.id,
@@ -98,6 +100,15 @@ export default async function LessonPage({
     <>
       <Navbar />
 
+      <MobileLessonSidebar
+        courseSlug={course.slug}
+        courseTitle={course.title}
+        lessons={lessonsForSidebar}
+        currentLessonId={lesson.id}
+        completedCount={completedCount}
+        courseProgress={courseProgress}
+      />
+
       <main className="mx-auto w-full max-w-7xl flex-1 px-5 py-8 sm:px-8 sm:py-10">
         {/* BREADCRUMB */}
         <Link
@@ -108,61 +119,47 @@ export default async function LessonPage({
         </Link>
 
         <div className="mt-6 grid gap-8 lg:grid-cols-3">
-          {/* ==================== LEFT ==================== */}
+          {/* ==================== LEFT: MAIN ==================== */}
           <div className="space-y-6 lg:col-span-2">
-            {/* HEADER with lesson button on mobile */}
+            {/* HEADER */}
             <header className="rounded-2xl border border-slate-200 bg-white p-6 sm:p-8 dark:border-[#1f2a44] dark:bg-[#131c33]">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="rounded-full bg-blue-100 px-3 py-1 text-xs font-bold text-blue-700 dark:bg-blue-950/60 dark:text-blue-300">
-                      Lesson {currentIndex + 1} of {lessons.length}
-                    </span>
-                    <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600 dark:bg-[#1b2742] dark:text-[#94a3b8]">
-                      {lesson.duration_minutes} min
-                    </span>
-                    {thisCompleted && (
-                      <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300">
-                        ✓ Completed
-                      </span>
-                    )}
-                  </div>
-
-                  <h1 className="mt-4 text-2xl font-black tracking-tight text-slate-900 sm:text-3xl dark:text-[#f1f5f9]">
-                    {lesson.title}
-                  </h1>
-
-                  {lesson.description && (
-                    <p className="mt-3 leading-7 text-slate-600 dark:text-[#94a3b8]">
-                      {lesson.description}
-                    </p>
-                  )}
-                </div>
-
-                {/* MOBILE LESSONS DROPDOWN — top-right of header */}
-                <MobileLessonSidebar
-                  courseSlug={course.slug}
-                  courseTitle={course.title}
-                  lessons={lessonsForSidebar}
-                  currentLessonId={lesson.id}
-                  completedCount={completedCount}
-                  courseProgress={courseProgress}
-                />
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="rounded-full bg-blue-100 px-3 py-1 text-xs font-bold text-blue-700 dark:bg-blue-950/60 dark:text-blue-300">
+                  Lesson {currentIndex + 1} of {lessons.length}
+                </span>
+                <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600 dark:bg-[#1b2742] dark:text-[#94a3b8]">
+                  {lesson.duration_minutes} min
+                </span>
+                {thisCompleted && (
+                  <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300">
+                    ✓ Completed
+                  </span>
+                )}
               </div>
+
+              <h1 className="mt-4 text-2xl font-black tracking-tight text-slate-900 sm:text-3xl dark:text-[#f1f5f9]">
+                {lesson.title}
+              </h1>
+
+              {lesson.description && (
+                <p className="mt-3 leading-7 text-slate-600 dark:text-[#94a3b8]">
+                  {lesson.description}
+                </p>
+              )}
             </header>
 
-            {/* VIDEO — only when a YouTube ID exists */}
-            {hasVideo && (
+            {/* VIDEO */}
+            {lesson.youtube_id && (
               <LessonVideo
-                youtubeId={lesson.youtube_id!}
+                youtubeId={lesson.youtube_id}
                 title={lesson.title}
               />
             )}
 
-            {/* CONCEPTS */}
+            {/* CONCEPTS (with EN/HA TTS) */}
             {concepts.length > 0 && <LessonConcepts concepts={concepts} />}
 
-            {/* CODE CHALLENGE */}
+            {/* CODE CHALLENGE — Phase 3 */}
             {hasExercise && (
               <LessonChallenge
                 type={
@@ -175,7 +172,7 @@ export default async function LessonPage({
               />
             )}
 
-            {/* QUICK CHECK */}
+            {/* QUICK CHECK — Phase 4 */}
             {hasQuickCheck && (
               <QuickCheck
                 question={lesson.quick_check_question!}
@@ -222,7 +219,7 @@ export default async function LessonPage({
             </div>
           </div>
 
-          {/* ==================== RIGHT: DESKTOP SIDEBAR ==================== */}
+          {/* ==================== RIGHT: SIDEBAR ==================== */}
           <aside className="hidden lg:col-span-1 lg:block">
             <div className="sticky top-24 space-y-4">
               <div className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-[#1f2a44] dark:bg-[#131c33]">
