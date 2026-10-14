@@ -1,3 +1,6 @@
+/* ============================================================
+   COURSES
+   ============================================================ */
 export type Course = {
   id: string;
   slug: string;
@@ -21,15 +24,17 @@ export type Course = {
   updated_at?: string;
 };
 
-export type LessonChapter = {
-  time: number;
+/* ============================================================
+   LESSONS
+   ============================================================ */
+export type LessonConcept = {
+  icon: string;
   title: string;
+  body: string;
+  code?: string;
 };
 
-export type LessonResource = {
-  name: string;
-  url: string;
-};
+export type LessonExerciseType = "none" | "html" | "javascript";
 
 export type Lesson = {
   id: string;
@@ -47,14 +52,42 @@ export type Lesson = {
   transcript: string | null;
   chapters: LessonChapter[] | null;
   resources: LessonResource[] | null;
+
+  // Concept cards (main lesson body)
+  concepts: LessonConcept[] | null;
+
+  // In-browser exercise
+  exercise_type: LessonExerciseType;
+  exercise_prompt: string | null;
+  exercise_starter: string | null;
+  exercise_solution: string | null;
+  exercise_hint: string | null;
+
+  // AI quick check
+  quick_check_question: string | null;
+  quick_check_options: string[] | null;
+  quick_check_correct_index: number | null;
+  quick_check_explanation: string | null;
+
   created_at?: string;
   updated_at?: string;
+};
+
+export type LessonChapter = {
+  time: number;
+  title: string;
+};
+
+export type LessonResource = {
+  name: string;
+  url: string;
 };
 
 export type LessonQuestion = {
   id: string;
   lesson_id: string;
   trigger_at: number;
+  position_seconds: number | null;
   question: string;
   options: string[];
   correct_index: number;
@@ -62,6 +95,9 @@ export type LessonQuestion = {
   created_at?: string;
 };
 
+/* ============================================================
+   FAQS
+   ============================================================ */
 export type FAQ = {
   id: string;
   question: string;
@@ -69,6 +105,9 @@ export type FAQ = {
   sort_order: number;
 };
 
+/* ============================================================
+   PROGRESS
+   ============================================================ */
 export type Progress = {
   id: string;
   user_id: string;
@@ -77,8 +116,12 @@ export type Progress = {
   completed: boolean;
   completed_at: string | null;
   updated_at: string;
+  notes?: string | null;
 };
 
+/* ============================================================
+   ENROLLMENTS
+   ============================================================ */
 export type Enrollment = {
   id: string;
   user_id: string;
@@ -89,6 +132,9 @@ export type Enrollment = {
   amount_paid_kobo: number | null;
 };
 
+/* ============================================================
+   PROFILES
+   ============================================================ */
 export type Profile = {
   id: string;
   full_name: string | null;
@@ -97,10 +143,16 @@ export type Profile = {
   role: "student" | "admin";
   theme_mode: "light" | "dark" | "system";
   theme_accent: "blue" | "emerald" | "purple" | "rose" | "amber";
+  is_scholarship: boolean;
+  scholarship_course_id: string | null;
+  password_changed: boolean;
   created_at: string;
   updated_at: string;
 };
 
+/* ============================================================
+   CERTIFICATES
+   ============================================================ */
 export type Certificate = {
   id: string;
   user_id: string;
@@ -112,6 +164,9 @@ export type Certificate = {
   paid_at: string | null;
 };
 
+/* ============================================================
+   PAYMENTS
+   ============================================================ */
 export type Payment = {
   id: string;
   user_id: string;
@@ -127,6 +182,9 @@ export type Payment = {
   refunded_at: string | null;
 };
 
+/* ============================================================
+   PLATFORM SETTINGS
+   ============================================================ */
 export type PlatformSettings = {
   id: number;
   site_name: string;
@@ -147,10 +205,48 @@ export type PlatformSettings = {
   ads_skip_for_admins: boolean;
   ads_skip_on_exam: boolean;
   ads_skip_on_checkout: boolean;
+  scholarship_enabled: boolean;
+  scholarship_title: string;
+  scholarship_description: string;
+  scholarship_max_seats: number;
   updated_at: string;
   updated_by: string | null;
 };
 
+/* ============================================================
+   SCHOLARSHIP
+   ============================================================ */
+export type ScholarshipApplication = {
+  id: string;
+  full_name: string;
+  email: string;
+  phone: string | null;
+  city: string | null;
+  age_range: string | null;
+  background: string | null;
+  motivation: string;
+  course_id: string | null;
+  status: "pending" | "approved" | "rejected" | "waitlisted";
+  user_id: string | null;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  admin_notes: string | null;
+  created_at: string;
+};
+
+export type EmailVerification = {
+  id: string;
+  email: string;
+  code: string;
+  purpose: "scholarship" | "signup";
+  used: boolean;
+  expires_at: string;
+  created_at: string;
+};
+
+/* ============================================================
+   NOTIFICATIONS
+   ============================================================ */
 export type Notification = {
   id: string;
   title: string;
@@ -174,6 +270,9 @@ export type UserNotification = {
   created_at: string;
 };
 
+/* ============================================================
+   ACTIVITY LOG
+   ============================================================ */
 export type ActivityLogEntry = {
   id: string;
   user_id: string | null;

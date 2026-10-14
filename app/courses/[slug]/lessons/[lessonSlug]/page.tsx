@@ -2,8 +2,11 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
-import ProVideoPlayer from "@/components/ProVideoPlayer";
-import YouTubeSubscribe from "@/components/YouTubeSubscribe";
+import LessonConcepts from "@/components/LessonConcepts";
+import LessonVideo from "@/components/LessonVideo";
+import LessonChallenge from "@/components/LessonChallenge";
+import QuickCheck from "@/components/QuickCheck";
+import MobileLessonSidebar from "@/components/MobileLessonSidebar";
 import { createClient } from "@/lib/supabase/server";
 import {
   getCourseBySlug,
@@ -43,20 +46,18 @@ export default async function LessonPage({
 
   if (!enrollment) redirect(`/courses/${slug}`);
 
-  const { data: progress } = await supabase
+  const { data: allProgress } = await supabase
     .from("progress")
-    .select("watched_percent, completed")
+    .select("lesson_id, completed")
     .eq("user_id", user.id)
-    .eq("lesson_id", lesson.id)
-    .maybeSingle();
+    .in(
+      "lesson_id",
+      lessons.map((l) => l.id)
+    );
 
-  const initialPercent = progress?.watched_percent ?? 0;
-
-  const { data: questions } = await supabase
-    .from("lesson_questions")
-    .select("*")
-    .eq("lesson_id", lesson.id)
-    .order("trigger_at");
+  const progressMap: Record<string, boolean> = Object.fromEntries(
+    (allProgress ?? []).map((p) => [p.lesson_id, p.completed])
+  );
 
   const currentIndex = lessons.findIndex((l) => l.id === lesson.id);
   const prevLesson = currentIndex > 0 ? lessons[currentIndex - 1] : null;
@@ -65,84 +66,66 @@ export default async function LessonPage({
       ? lessons[currentIndex + 1]
       : null;
 
-  const lessonIds = lessons.map((l) => l.id);
-  const { data: allProgress } = await supabase
-    .from("progress")
-    .select("lesson_id, completed, watched_percent")
-    .eq("user_id", user.id)
-    .in("lesson_id", lessonIds);
-
-  const progressMap: Record<
-    string,
-    { completed: boolean; watched_percent: number }
-  > = Object.fromEntries(
-    (allProgress ?? []).map((p) => [
-      p.lesson_id,
-      { completed: p.completed, watched_percent: p.watched_percent },
-    ])
-  );
-
-  const totalLessons = lessons.length;
-  const completedCount = lessons.filter(
-    (l) => progressMap[l.id]?.completed
-  ).length;
-  const courseProgress = totalLessons
-    ? Math.round((completedCount / totalLessons) * 100)
+  const completedCount = lessons.filter((l) => progressMap[l.id]).length;
+  const courseProgress = lessons.length
+    ? Math.round((completedCount / lessons.length) * 100)
     : 0;
 
-  const thisCompleted = progressMap[lesson.id]?.completed ?? false;
+  const thisCompleted = progressMap[lesson.id] ?? false;
+  const concepts = lesson.concepts ?? [];
 
-  const chapters = lesson.chapters ?? [];
-  const resources = lesson.resources ?? [];
+  // Quick check has enough data to render?
+  const hasQuickCheck =
+    lesson.quick_check_question &&
+    Array.isArray(lesson.quick_check_options) &&
+    lesson.quick_check_options.length >= 2 &&
+    typeof lesson.quick_check_correct_index === "number";
+
+  // Exercise has enough data to render?
+  const hasExercise =
+    lesson.exercise_type !== "none" &&
+    lesson.exercise_prompt &&
+    lesson.exercise_starter &&
+    lesson.exercise_solution;
+
+  const lessonsForSidebar = lessons.map((l) => ({
+    id: l.id,
+    slug: l.slug,
+    title: l.title,
+    duration_minutes: l.duration_minutes,
+    completed: progressMap[l.id] ?? false,
+  }));
 
   return (
     <>
       <Navbar />
 
+      <MobileLessonSidebar
+        courseSlug={course.slug}
+        courseTitle={course.title}
+        lessons={lessonsForSidebar}
+        currentLessonId={lesson.id}
+        completedCount={completedCount}
+        courseProgress={courseProgress}
+      />
+
       <main className="mx-auto w-full max-w-7xl flex-1 px-5 py-8 sm:px-8 sm:py-10">
-        <div className="flex flex-wrap items-center gap-2 text-sm text-slate-600 dark:text-[#94a3b8]">
-          <Link
-            href={`/courses/${course.slug}`}
-            className="font-bold text-blue-700 transition hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300"
-          >
-            ← {course.title}
-          </Link>
-          <span>/</span>
-          <span className="truncate">{lesson.title}</span>
-        </div>
+        {/* BREADCRUMB */}
+        <Link
+          href={`/courses/${course.slug}`}
+          className="text-sm font-bold text-blue-700 transition hover:text-blue-900 dark:text-blue-400"
+        >
+          ← {course.title}
+        </Link>
 
         <div className="mt-6 grid gap-8 lg:grid-cols-3">
+          {/* ==================== LEFT: MAIN ==================== */}
           <div className="space-y-6 lg:col-span-2">
-            {lesson.youtube_id ? (
-              <ProVideoPlayer
-                lessonId={lesson.id}
-                youtubeId={lesson.youtube_id}
-                title={lesson.title}
-                transcript={lesson.transcript}
-                resources={resources}
-                chapters={chapters}
-                questions={questions ?? []}
-                initialPercent={initialPercent}
-              />
-            ) : (
-              <div className="flex aspect-video items-center justify-center rounded-2xl border border-slate-200 bg-slate-100 text-center dark:border-[#1f2a44] dark:bg-[#10182b]">
-                <div>
-                  <p className="text-4xl">🎬</p>
-                  <p className="mt-3 font-bold text-slate-900 dark:text-[#f1f5f9]">
-                    Video coming soon
-                  </p>
-                  <p className="mt-1 text-sm text-slate-500 dark:text-[#94a3b8]">
-                    Admin has not added a video for this lesson yet.
-                  </p>
-                </div>
-              </div>
-            )}
-
-            {/* LESSON META */}
-            <div className="rounded-2xl border border-slate-200 bg-white p-6 dark:border-[#1f2a44] dark:bg-[#131c33]">
+            {/* HEADER */}
+            <header className="rounded-2xl border border-slate-200 bg-white p-6 sm:p-8 dark:border-[#1f2a44] dark:bg-[#131c33]">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="rounded-full bg-blue-100 px-3 py-1 text-xs font-bold text-blue-700 dark:bg-blue-950/60 dark:text-blue-300">
-                  Lesson {currentIndex + 1} of {totalLessons}
+                  Lesson {currentIndex + 1} of {lessons.length}
                 </span>
                 <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600 dark:bg-[#1b2742] dark:text-[#94a3b8]">
                   {lesson.duration_minutes} min
@@ -163,44 +146,41 @@ export default async function LessonPage({
                   {lesson.description}
                 </p>
               )}
+            </header>
 
-              {lesson.notes && (
-                <div className="mt-6 rounded-xl border border-blue-100 bg-blue-50 p-5 dark:border-[#1f2a44] dark:bg-[#10182b]">
-                  <p className="text-xs font-extrabold uppercase tracking-wider text-blue-700 dark:text-blue-400">
-                    Notes
-                  </p>
-                  <p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-slate-700 dark:text-[#cbd5e1]">
-                    {lesson.notes}
-                  </p>
-                </div>
-              )}
+            {/* VIDEO */}
+            {lesson.youtube_id && (
+              <LessonVideo
+                youtubeId={lesson.youtube_id}
+                title={lesson.title}
+              />
+            )}
 
-              {lesson.starter_code && (
-                <div className="mt-6">
-                  <p className="text-xs font-extrabold uppercase tracking-wider text-blue-700 dark:text-blue-400">
-                    Starter code
-                  </p>
-                  <pre className="mt-3 overflow-x-auto rounded-xl bg-slate-950 p-5 font-mono text-sm leading-7 text-slate-100">
-                    <code>{lesson.starter_code}</code>
-                  </pre>
-                </div>
-              )}
-            </div>
+            {/* CONCEPTS (with EN/HA TTS) */}
+            {concepts.length > 0 && <LessonConcepts concepts={concepts} />}
 
-            {/* YOUTUBE SUBSCRIBE */}
-            <div className="rounded-2xl border border-red-100 bg-red-50/50 p-4 dark:border-red-900/40 dark:bg-red-950/20">
-              <div className="flex flex-wrap items-center justify-between gap-4">
-                <div>
-                  <p className="text-xs font-extrabold uppercase tracking-wider text-red-600 dark:text-red-400">
-                    Found this helpful?
-                  </p>
-                  <p className="mt-1 text-sm font-bold text-slate-900 dark:text-[#f1f5f9]">
-                    Subscribe on YouTube for more lessons
-                  </p>
-                </div>
-                <YouTubeSubscribe variant="compact" />
-              </div>
-            </div>
+            {/* CODE CHALLENGE — Phase 3 */}
+            {hasExercise && (
+              <LessonChallenge
+                type={
+                  lesson.exercise_type === "javascript" ? "javascript" : "html"
+                }
+                prompt={lesson.exercise_prompt!}
+                starter={lesson.exercise_starter!}
+                solution={lesson.exercise_solution!}
+                hint={lesson.exercise_hint}
+              />
+            )}
+
+            {/* QUICK CHECK — Phase 4 */}
+            {hasQuickCheck && (
+              <QuickCheck
+                question={lesson.quick_check_question!}
+                options={lesson.quick_check_options!}
+                correctIndex={lesson.quick_check_correct_index!}
+                explanation={lesson.quick_check_explanation}
+              />
+            )}
 
             {/* PREV / NEXT */}
             <div className="flex flex-wrap items-center justify-between gap-4">
@@ -225,7 +205,7 @@ export default async function LessonPage({
                   </Link>
                 ) : (
                   <span className="rounded-xl border border-slate-200 bg-slate-100 px-5 py-3 text-sm font-bold text-slate-400 dark:border-[#1f2a44] dark:bg-[#0e1526] dark:text-[#64748b]">
-                    🔒 Watch 95% to unlock
+                    🔒 Complete this lesson to continue
                   </span>
                 )
               ) : (
@@ -239,13 +219,13 @@ export default async function LessonPage({
             </div>
           </div>
 
-          {/* SIDEBAR */}
-          <aside className="lg:col-span-1">
+          {/* ==================== RIGHT: SIDEBAR ==================== */}
+          <aside className="hidden lg:col-span-1 lg:block">
             <div className="sticky top-24 space-y-4">
               <div className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-[#1f2a44] dark:bg-[#131c33]">
                 <div className="flex items-end justify-between">
                   <p className="text-xs font-extrabold uppercase tracking-wider text-blue-700 dark:text-blue-400">
-                    Your progress
+                    Course progress
                   </p>
                   <p className="text-2xl font-black text-slate-900 dark:text-[#f1f5f9]">
                     {courseProgress}%
@@ -258,20 +238,18 @@ export default async function LessonPage({
                   />
                 </div>
                 <p className="mt-3 text-sm text-slate-600 dark:text-[#94a3b8]">
-                  {completedCount} of {totalLessons} lessons completed
+                  {completedCount} of {lessons.length} lessons completed
                 </p>
               </div>
 
               <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white dark:border-[#1f2a44] dark:bg-[#131c33]">
                 <p className="border-b border-slate-100 px-5 py-4 text-sm font-extrabold text-slate-900 dark:border-[#1f2a44] dark:text-[#f1f5f9]">
-                  Course content
+                  All lessons
                 </p>
-                <ol className="max-h-[600px] overflow-y-auto">
+                <ol className="max-h-[500px] overflow-y-auto">
                   {lessons.map((l, i) => {
-                    const p = progressMap[l.id];
-                    const isDone = p?.completed ?? false;
+                    const done = progressMap[l.id] ?? false;
                     const isCurrent = l.id === lesson.id;
-
                     return (
                       <li
                         key={l.id}
@@ -285,14 +263,14 @@ export default async function LessonPage({
                         >
                           <span
                             className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-xs font-black ${
-                              isDone
+                              done
                                 ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300"
                                 : isCurrent
                                 ? "bg-blue-600 text-white"
                                 : "bg-slate-100 text-slate-500 dark:bg-[#1b2742] dark:text-[#64748b]"
                             }`}
                           >
-                            {isDone ? "✓" : String(i + 1).padStart(2, "0")}
+                            {done ? "✓" : String(i + 1).padStart(2, "0")}
                           </span>
                           <div className="min-w-0 flex-1">
                             <p
@@ -306,7 +284,6 @@ export default async function LessonPage({
                             </p>
                             <p className="truncate text-xs text-slate-500 dark:text-[#94a3b8]">
                               {l.duration_minutes} min
-                              {p && !isDone && ` · ${p.watched_percent}%`}
                             </p>
                           </div>
                         </Link>
