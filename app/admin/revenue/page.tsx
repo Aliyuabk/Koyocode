@@ -7,9 +7,7 @@ export const dynamic = "force-dynamic";
 export default async function AdminRevenuePage() {
   const supabase = await createClient();
 
-  // ------------------------------------------------------------
   // 1. Auth + admin check
-  // ------------------------------------------------------------
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -54,9 +52,7 @@ export default async function AdminRevenuePage() {
     );
   }
 
-  // ------------------------------------------------------------
   // 2. Load settings
-  // ------------------------------------------------------------
   const { data: settings, error: settingsErr } = await supabase
     .from("platform_settings")
     .select("*")
@@ -94,9 +90,7 @@ on conflict (id) do nothing;`}
     );
   }
 
-  // ------------------------------------------------------------
   // 3. Load recent payments
-  // ------------------------------------------------------------
   const { data: payments } = await supabase
     .from("payments")
     .select(
@@ -105,9 +99,7 @@ on conflict (id) do nothing;`}
     .order("created_at", { ascending: false })
     .limit(100);
 
-  // ------------------------------------------------------------
   // 4. Join user names
-  // ------------------------------------------------------------
   const userIds = Array.from(
     new Set((payments ?? []).map((p) => p.user_id))
   );
@@ -123,9 +115,7 @@ on conflict (id) do nothing;`}
     (profiles ?? []).map((p) => [p.id, p.full_name])
   );
 
-  // ------------------------------------------------------------
   // 5. Compute stats
-  // ------------------------------------------------------------
   const success = (payments ?? []).filter((p) => p.status === "success");
   const totalRevenue = success.reduce((s, p) => s + p.amount_kobo, 0);
   const certCount = success.filter((p) => p.type === "certificate").length;
@@ -138,9 +128,7 @@ on conflict (id) do nothing;`}
   );
   const revenue30 = last30.reduce((s, p) => s + p.amount_kobo, 0);
 
-  // ------------------------------------------------------------
-  // 6. Pass to client
-  // ------------------------------------------------------------
+  // 6. Pass typed data to client
   return (
     <RevenueManager
       settings={{
@@ -172,6 +160,8 @@ on conflict (id) do nothing;`}
           settings.scholarship_description ??
           "Free access to one premium course + a verified certificate.",
         scholarship_max_seats: settings.scholarship_max_seats ?? 30,
+        support_email:
+          settings.support_email ?? "koyocode@kowagurutech.ng",
       }}
       payments={(payments ?? []).map((p) => ({
         id: p.id,
