@@ -36,7 +36,7 @@ const FALLBACK: PublicSettings = {
   ads_skip_for_admins: true,
   ads_skip_on_exam: true,
   ads_skip_on_checkout: true,
-  support_email: "support@koyocode.com.ng",
+  support_email: "koyocode@kowagurutech.ng",
   scholarship_enabled: false,
   scholarship_title: "KoyoCode Scholarship Program",
   scholarship_description:

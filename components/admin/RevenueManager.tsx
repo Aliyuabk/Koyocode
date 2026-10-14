@@ -35,6 +35,7 @@ type Settings = {
   scholarship_title: string;
   scholarship_description: string;
   scholarship_max_seats: number;
+  support_email: string;
 };
 
 type Payment = {
@@ -125,6 +126,7 @@ export default function RevenueManager({
       scholarship_title: form.scholarship_title,
       scholarship_description: form.scholarship_description,
       scholarship_max_seats: form.scholarship_max_seats,
+      support_email: form.support_email?.trim() || null,
     };
 
     const { data, error } = await supabase
@@ -581,7 +583,6 @@ export default function RevenueManager({
         {/* ============ SCHOLARSHIP ============ */}
         {tab === "scholarship" && (
           <div className="space-y-5">
-            {/* MASTER SWITCH */}
             <div
               className={`rounded-2xl border p-6 transition ${
                 form.scholarship_enabled
@@ -640,7 +641,6 @@ export default function RevenueManager({
               </p>
             </div>
 
-            {/* DETAILS */}
             <div className="rounded-2xl border border-slate-200 bg-white p-6 dark:border-[#1f2a44] dark:bg-[#131c33]">
               <p className="text-xs font-extrabold uppercase tracking-wider text-purple-700 dark:text-purple-400">
                 Program details
@@ -696,7 +696,6 @@ export default function RevenueManager({
               </div>
             </div>
 
-            {/* LINK TO APPLICATIONS */}
             <div className="rounded-2xl border border-blue-200 bg-blue-50 p-6 dark:border-[#1f2a44] dark:bg-[#10182b]">
               <p className="text-xs font-extrabold uppercase tracking-wider text-blue-700 dark:text-blue-400">
                 Applications
@@ -850,7 +849,7 @@ export default function RevenueManager({
         {tab === "keys" && (
           <div className="rounded-2xl border border-slate-200 bg-white p-6 dark:border-[#1f2a44] dark:bg-[#131c33]">
             <p className="text-xs font-extrabold uppercase tracking-wider text-purple-700 dark:text-purple-400">
-              Payment API keys
+              Payment + platform keys
             </p>
 
             <div className="mt-5 space-y-5">
@@ -870,7 +869,7 @@ export default function RevenueManager({
 
               <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-950/40">
                 <p className="text-sm font-bold text-amber-800 dark:text-amber-300">
-                  ⚠ Secret key
+                  ⚠ Paystack Secret key
                 </p>
                 <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">
                   The <code>PAYSTACK_SECRET_KEY</code> is stored in environment
@@ -891,6 +890,36 @@ export default function RevenueManager({
                   <option value="KES">Kenyan Shilling (KES)</option>
                 </select>
               </Field>
+
+              <Field
+                label="Support email"
+                hint="Shown to users in emails, error messages, and payment issues"
+              >
+                <input
+                  type="email"
+                  className={inputCls}
+                  value={form.support_email ?? ""}
+                  onChange={(e) => update("support_email", e.target.value)}
+                  placeholder="koyocode@kowagurutech.ng"
+                />
+              </Field>
+
+              <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 dark:border-blue-800 dark:bg-blue-950/40">
+                <p className="text-sm font-bold text-blue-800 dark:text-blue-300">
+                  ℹ SMTP configuration
+                </p>
+                <p className="mt-1 text-xs text-blue-700 dark:text-blue-300">
+                  SMTP credentials (host, port, username, password) are stored
+                  in environment variables:
+                  <br />
+                  <code className="mt-1 inline-block">
+                    SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD
+                  </code>
+                  <br />
+                  These must be configured in Vercel and restart the deployment
+                  after changes.
+                </p>
+              </div>
             </div>
           </div>
         )}

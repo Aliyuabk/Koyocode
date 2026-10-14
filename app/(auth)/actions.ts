@@ -8,6 +8,9 @@ import { isStrongEnough } from "@/lib/password";
 export type ActionState = { error?: string; success?: string } | null;
 export type ProfileState = { error?: string; success?: string } | null;
 
+const SUPPORT_EMAIL =
+  process.env.SMTP_USER ?? "koyocode@kowagurutech.ng";
+
 /* ============================================================
    LOGIN
    ============================================================ */
@@ -28,7 +31,6 @@ export async function login(
 
   if (error) return { error: error.message };
 
-  // Look up role to decide landing page
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -45,7 +47,6 @@ export async function login(
 
   revalidatePath("/", "layout");
 
-  // Priority: ?next= > admin default > student default
   if (nextParam.startsWith("/")) {
     redirect(nextParam);
   }
@@ -101,7 +102,7 @@ export async function logout() {
 }
 
 /* ============================================================
-   FORGOT PASSWORD — send the reset link
+   FORGOT PASSWORD
    ============================================================ */
 export async function forgotPassword(
   _prev: ActionState,
@@ -116,17 +117,22 @@ export async function forgotPassword(
   const supabase = await createClient();
 
   const siteUrl =
-    process.env.NEXT_PUBLIC_SITE_URL ?? "https://koyocode.vercel.app/";
+    process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
 
   const { error } = await supabase.auth.resetPasswordForEmail(email, {
     redirectTo: `${siteUrl}/reset-password`,
   });
 
   if (error) {
-    return { error: error.message };
+    console.error("[forgot-password] error:", error.message);
+    return {
+      error:
+        "We couldn't send the reset email right now. Please try again in a few minutes, or contact " +
+        SUPPORT_EMAIL +
+        " if the problem continues.",
+    };
   }
 
-  // Always show the same message — don't leak whether an email exists
   return {
     success:
       "If an account exists with that email, we've sent a password reset link. Check your inbox (and spam folder).",
@@ -134,7 +140,7 @@ export async function forgotPassword(
 }
 
 /* ============================================================
-   RESET PASSWORD — apply the new password
+   RESET PASSWORD
    ============================================================ */
 export async function resetPassword(
   _prev: ActionState,

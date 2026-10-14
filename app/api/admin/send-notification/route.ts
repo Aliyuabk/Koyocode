@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createClient as createAdmin } from "@supabase/supabase-js";
+import { sendEmail, escapeHtml } from "@/lib/email";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -25,11 +26,8 @@ export async function POST(req: Request) {
   } = await userSupabase.auth.getUser();
 
   if (!user) {
-    console.log("[send-notification] FAIL: not logged in");
     return NextResponse.json({ error: "Not logged in" }, { status: 401 });
   }
-
-  console.log("[send-notification] user:", user.id);
 
   const { data: profile } = await userSupabase
     .from("profiles")
@@ -38,7 +36,6 @@ export async function POST(req: Request) {
     .single();
 
   if (profile?.role !== "admin") {
-    console.log("[send-notification] FAIL: not admin, role =", profile?.role);
     return NextResponse.json({ error: "Admin only" }, { status: 403 });
   }
 
@@ -79,12 +76,8 @@ export async function POST(req: Request) {
   const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
   if (!SUPABASE_URL || !SERVICE_KEY) {
-    console.log("[send-notification] FAIL: missing service role env vars");
     return NextResponse.json(
-      {
-        error: "Server misconfigured",
-        detail: "SUPABASE_SERVICE_ROLE_KEY missing",
-      },
+      { error: "Server misconfigured", detail: "Missing service role key" },
       { status: 500 }
     );
   }
@@ -103,13 +96,10 @@ export async function POST(req: Request) {
 
     const { data: profiles, error } = await query;
     if (error) {
-      console.log("[send-notification] FAIL: profiles query", error.message);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
     recipientIds = (profiles ?? []).map((p) => p.id);
   }
-
-  console.log("[send-notification] recipients:", recipientIds.length);
 
   if (recipientIds.length === 0) {
     return NextResponse.json(
@@ -136,14 +126,11 @@ export async function POST(req: Request) {
     .single();
 
   if (notifErr || !notif) {
-    console.log("[send-notification] FAIL: insert notif", notifErr?.message);
     return NextResponse.json(
       { error: notifErr?.message ?? "Failed to create notification" },
       { status: 500 }
     );
   }
-
-  console.log("[send-notification] notif created:", notif.id);
 
   // 6. Insert per-user inbox rows
   const inboxRows = recipientIds.map((uid) => ({
@@ -156,65 +143,37 @@ export async function POST(req: Request) {
     .insert(inboxRows);
 
   if (inboxErr) {
-    console.log("[send-notification] FAIL: insert inbox", inboxErr.message);
     return NextResponse.json({ error: inboxErr.message }, { status: 500 });
   }
 
-  console.log("[send-notification] inbox rows inserted:", inboxRows.length);
-
-  // 7. Optional email — skipped for now, add later
+  // 7. Optional: send email
   let emailSent = 0;
   let emailFailed = 0;
 
   if (send_email) {
-    // Email sending via nodemailer / Gmail SMTP
-    const GMAIL_USER = process.env.GMAIL_USER;
-    const GMAIL_APP_PASSWORD = process.env.GMAIL_APP_PASSWORD;
-
-    if (GMAIL_USER && GMAIL_APP_PASSWORD) {
+    for (const uid of recipientIds) {
       try {
-        const nodemailer = await import("nodemailer");
-        const transporter = nodemailer.default.createTransport({
-          host: "smtp.gmail.com",
-          port: 587,
-          secure: false,
-          auth: { user: GMAIL_USER, pass: GMAIL_APP_PASSWORD },
-        });
-
-        for (const uid of recipientIds) {
-          const { data: authUser } = await admin.auth.admin.getUserById(uid);
-          const email = authUser?.user?.email;
-          if (!email) {
-            emailFailed++;
-            continue;
-          }
-
-          try {
-            await transporter.sendMail({
-              from: `"KoyoCode" <${GMAIL_USER}>`,
-              to: email,
-              subject: title.trim(),
-              html: `
-                <div style="font-family:sans-serif;max-width:600px;margin:auto;padding:32px 20px;">
-                  <h1 style="color:#0A3D91;font-size:22px;margin:0 0 16px;">${escapeHtml(title)}</h1>
-                  <p style="color:#475569;font-size:15px;line-height:1.6;white-space:pre-wrap;">${escapeHtml(message)}</p>
-                  ${
-                    link
-                      ? `<a href="${process.env.NEXT_PUBLIC_SITE_URL ?? ""}${link}" style="display:inline-block;margin-top:24px;background:#0A3D91;color:#fff;padding:14px 32px;border-radius:12px;text-decoration:none;font-weight:bold;">${escapeHtml(link_label || "Open")}</a>`
-                      : ""
-                  }
-                  <hr style="border:none;border-top:1px solid #e2e8f0;margin:32px 0;">
-                  <p style="color:#94a3b8;font-size:12px;">KoyoCode · New Generation Tech Academy</p>
-                </div>
-              `,
-            });
-            emailSent++;
-          } catch {
-            emailFailed++;
-          }
+        const { data: authUser } = await admin.auth.admin.getUserById(uid);
+        const email = authUser?.user?.email;
+        if (!email) {
+          emailFailed++;
+          continue;
         }
+
+        await sendEmail({
+          to: email,
+          subject: title.trim(),
+          html: buildNotificationEmail({
+            title: title.trim(),
+            message: message.trim(),
+            link: link?.trim() || null,
+            link_label: link_label?.trim() || null,
+          }),
+        });
+        emailSent++;
       } catch (e: any) {
-        console.error("[send-notification] email setup error:", e?.message);
+        console.error("[send-notification] email failed for", uid, e?.message);
+        emailFailed++;
       }
     }
   }
@@ -236,11 +195,99 @@ export async function POST(req: Request) {
   });
 }
 
-function escapeHtml(s: string) {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
+function buildNotificationEmail({
+  title,
+  message,
+  link,
+  link_label,
+}: {
+  title: string;
+  message: string;
+  link: string | null;
+  link_label: string | null;
+}) {
+  const siteUrl =
+    process.env.NEXT_PUBLIC_SITE_URL ?? "https://koyocode.vercel.app";
+  const supportEmail = process.env.SMTP_USER ?? "koyocode@kowagurutech.ng";
+  const fullLink = link ? `${siteUrl}${link}` : null;
+
+  return `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>${escapeHtml(title)}</title>
+</head>
+<body style="margin:0;padding:0;background:#f4f6fb;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="background:#f4f6fb;padding:40px 16px;">
+    <tr>
+      <td align="center">
+        <table width="600" cellpadding="0" cellspacing="0" role="presentation" style="max-width:600px;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 8px 32px rgba(10,61,145,0.08);">
+          <tr>
+            <td style="background:linear-gradient(135deg,#0A3D91 0%,#1E90FF 100%);padding:36px 40px 28px;text-align:center;">
+              <table cellpadding="0" cellspacing="0" role="presentation" align="center">
+                <tr>
+                  <td style="background:#ffffff;width:48px;height:48px;border-radius:12px;text-align:center;vertical-align:middle;font-size:24px;font-weight:900;color:#0A3D91;line-height:48px;box-shadow:0 4px 16px rgba(0,0,0,0.15);">
+                    K
+                  </td>
+                </tr>
+              </table>
+              <h1 style="margin:20px 0 0;color:#ffffff;font-size:22px;font-weight:800;">
+                KoyoCode
+              </h1>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="padding:40px;">
+              <h2 style="margin:0 0 16px;color:#0f172a;font-size:22px;font-weight:800;">
+                ${escapeHtml(title)}
+              </h2>
+
+              <p style="margin:0 0 16px;color:#475569;font-size:15px;line-height:1.7;white-space:pre-wrap;">
+                ${escapeHtml(message)}
+              </p>
+
+              ${
+                fullLink && link_label
+                  ? `
+                <table cellpadding="0" cellspacing="0" role="presentation" align="center" style="margin:32px 0;">
+                  <tr>
+                    <td style="border-radius:12px;background:#0A3D91;box-shadow:0 8px 24px rgba(10,61,145,0.3);">
+                      <a href="${fullLink}" style="display:inline-block;padding:14px 36px;color:#ffffff;font-size:15px;font-weight:700;text-decoration:none;border-radius:12px;">
+                        ${escapeHtml(link_label)}
+                      </a>
+                    </td>
+                  </tr>
+                </table>
+                `
+                  : ""
+              }
+
+              <p style="margin:24px 0 0;color:#475569;font-size:14px;line-height:1.6;">
+                Barka da zuwa,<br />
+                <strong>The KoyoCode team</strong>
+              </p>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="padding:24px 40px;background:#f8fafc;border-top:1px solid #e2e8f0;text-align:center;">
+              <p style="margin:0 0 8px;color:#475569;font-size:13px;font-weight:600;">
+                Koyi coding. Gina makomarka.
+              </p>
+              <p style="margin:0;color:#94a3b8;font-size:11px;line-height:1.6;">
+                KoyoCode · New Generation Tech Academy<br />
+                <a href="mailto:${supportEmail}" style="color:#1E90FF;text-decoration:none;">${supportEmail}</a>
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+  `;
 }

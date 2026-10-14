@@ -1,15 +1,13 @@
 import { NextResponse } from "next/server";
-import nodemailer from "nodemailer";
 import { createClient as createUserClient } from "@/lib/supabase/server";
 import { createClient as createAdmin } from "@supabase/supabase-js";
+import { sendEmail, escapeHtml } from "@/lib/email";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
 
 export async function POST(req: Request) {
-  // ============================================================
   // 1. Verify caller is admin
-  // ============================================================
   const userSupabase = await createUserClient();
   const {
     data: { user },
@@ -29,9 +27,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Admin only" }, { status: 403 });
   }
 
-  // ============================================================
   // 2. Parse body
-  // ============================================================
   let body: any;
   try {
     body = await req.json();
@@ -47,9 +43,7 @@ export async function POST(req: Request) {
     );
   }
 
-  // ============================================================
   // 3. Load application via service role
-  // ============================================================
   const admin = createAdmin(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -79,18 +73,14 @@ export async function POST(req: Request) {
     );
   }
 
-  // ============================================================
   // 4. Load course
-  // ============================================================
   const { data: course } = await admin
     .from("courses")
     .select("id, title, icon, slug")
     .eq("id", app.course_id)
     .maybeSingle();
 
-  // ============================================================
   // 5. Create or find the auth user
-  // ============================================================
   const tempPassword = generatePassword();
   const { data: existingUsers } = await admin.auth.admin.listUsers();
   const existing = existingUsers?.users?.find(
@@ -125,9 +115,7 @@ export async function POST(req: Request) {
     userIsNew = true;
   }
 
-  // ============================================================
   // 6. Enroll + grant premium access
-  // ============================================================
   const { data: existingEnrollment } = await admin
     .from("enrollments")
     .select("id")
@@ -154,9 +142,7 @@ export async function POST(req: Request) {
     });
   }
 
-  // ============================================================
-  // 7. Tag profile as scholarship + lock access + force pw change
-  // ============================================================
+  // 7. Tag profile as scholarship + force password change
   if (userIsNew) {
     await admin
       .from("profiles")
@@ -176,9 +162,7 @@ export async function POST(req: Request) {
       .eq("id", userId);
   }
 
-  // ============================================================
   // 8. Mark application approved
-  // ============================================================
   await admin
     .from("scholarship_applications")
     .update({
@@ -189,35 +173,20 @@ export async function POST(req: Request) {
     })
     .eq("id", application_id);
 
-  // ============================================================
   // 9. Send welcome email
-  // ============================================================
   let emailSent = false;
   let emailError: string | null = null;
 
-  const GMAIL_USER = process.env.GMAIL_USER;
-  const GMAIL_APP_PASSWORD = process.env.GMAIL_APP_PASSWORD;
   const SITE_URL =
     process.env.NEXT_PUBLIC_SITE_URL ?? "https://koyocode.vercel.app";
 
-  if (GMAIL_USER && GMAIL_APP_PASSWORD && userIsNew) {
+  if (userIsNew) {
     try {
-      const transporter = nodemailer.createTransport({
-        host: "smtp.gmail.com",
-        port: 587,
-        secure: false,
-        auth: {
-          user: GMAIL_USER,
-          pass: GMAIL_APP_PASSWORD,
-        },
-      });
-
       const firstName = app.full_name.split(" ")[0] || "friend";
       const courseTitle = course?.title ?? "your course";
       const courseIcon = course?.icon ?? "📘";
 
-      await transporter.sendMail({
-        from: `"KoyoCode" <${GMAIL_USER}>`,
+      await sendEmail({
         to: app.email,
         subject: `🎓 Welcome to KoyoCode, ${firstName}! Your scholarship is approved`,
         html: buildWelcomeEmail({
@@ -237,17 +206,11 @@ export async function POST(req: Request) {
       emailError = e?.message ?? "Unknown email error";
       console.error("[scholarship] email failed:", emailError);
     }
-  } else if (!userIsNew) {
-    console.log("[scholarship] user existed, skipping email");
   } else {
-    console.warn(
-      "[scholarship] GMAIL_USER or GMAIL_APP_PASSWORD not configured"
-    );
+    console.log("[scholarship] user existed, skipping email");
   }
 
-  // ============================================================
   // 10. Return
-  // ============================================================
   return NextResponse.json({
     ok: true,
     user_id: userId,
@@ -270,15 +233,6 @@ function generatePassword() {
   return out + "@1";
 }
 
-function escapeHtml(s: string) {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
-
 function buildWelcomeEmail({
   firstName,
   fullName,
@@ -297,6 +251,8 @@ function buildWelcomeEmail({
   siteUrl: string;
 }) {
   const loginUrl = `${siteUrl}/login`;
+  const supportEmail =
+    process.env.SMTP_USER ?? "koyocode@kowagurutech.ng";
 
   return `
 <!DOCTYPE html>
@@ -434,15 +390,12 @@ function buildWelcomeEmail({
               </p>
               <p style="margin:0;color:#94a3b8;font-size:11px;line-height:1.6;">
                 KoyoCode · New Generation Tech Academy<br />
-                <a href="${siteUrl}" style="color:#1E90FF;text-decoration:none;">${siteUrl.replace(/^https?:\/\//, "")}</a>
+                <a href="${siteUrl}" style="color:#1E90FF;text-decoration:none;">${siteUrl.replace(/^https?:\/\//, "")}</a><br />
+                <a href="mailto:${supportEmail}" style="color:#1E90FF;text-decoration:none;">${supportEmail}</a>
               </p>
             </td>
           </tr>
         </table>
-
-        <p style="margin:24px 0 0;color:#94a3b8;font-size:11px;line-height:1.6;text-align:center;">
-          You received this email because you applied for a KoyoCode Scholarship.
-        </p>
       </td>
     </tr>
   </table>
