@@ -2,10 +2,12 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Navbar from "@/components/Navbar";
+import Footer from "@/components/Footer";
 import Avatar from "@/components/ui/Avatar";
 import YouTubeSubscribe from "@/components/YouTubeSubscribe";
 import AdSlotAdsterra from "@/components/AdSlotAdsterra";
 import { getPublicSettings } from "@/lib/settings";
+import { getUserStats } from "@/lib/course-stats";
 
 export default async function DashboardPage() {
   const supabase = await createClient();
@@ -19,7 +21,7 @@ export default async function DashboardPage() {
   const adsOn = settings.ads_enabled;
   const slots = settings.ads_slots ?? {};
 
-  // Profile (includes scholarship + password flags)
+  // Profile
   const { data: profile } = await supabase
     .from("profiles")
     .select(
@@ -28,31 +30,60 @@ export default async function DashboardPage() {
     .eq("id", user.id)
     .single();
 
-  // Progress
-  const { data: progressRows } = await supabase
-    .from("progress")
-    .select(
-      `id, completed, watched_percent, updated_at,
-       lesson:lessons ( id, title, slug, course:courses ( id, title, slug, icon, color, category ) )`
-    )
-    .eq("user_id", user.id)
-    .order("updated_at", { ascending: false });
+  // ------------------------------------------------------------------
+  // STATS — single source of truth (shared with /dashboard/progress)
+  // ------------------------------------------------------------------
+  const userStats = await getUserStats(user.id);
+  const {
+    courses: courseStats,
+    totalCourses,
+    totalLessonsCompleted,
+    overallPercent,
+    streak,
+  } = userStats;
 
-  // Recommended courses
-  const { data: courses } = await supabase
+  const lessonsAcrossEnrollments = courseStats.reduce(
+    (s, c) => s + c.totalLessons,
+    0
+  );
+  const completedAcrossEnrollments = courseStats.reduce(
+    (s, c) => s + c.completedLessons,
+    0
+  );
+
+  const enrolledIds = new Set(courseStats.map((c) => c.id));
+  const myCourses = courseStats.slice(0, 5);
+
+  // ------------------------------------------------------------------
+  // CERTIFICATES — map by course_id so we can gate the button correctly
+  // ------------------------------------------------------------------
+  const { data: certRows } = await supabase
+    .from("certificates")
+    .select("id, course_id, verification_code, is_paid")
+    .eq("user_id", user.id);
+
+  const certByCourse = new Map(
+    (certRows ?? []).map((c) => [c.course_id, c])
+  );
+  const certCount = certRows?.length ?? 0;
+
+  // ------------------------------------------------------------------
+  // RECOMMENDED — exclude already enrolled
+  // ------------------------------------------------------------------
+  const { data: recommended } = await supabase
     .from("courses")
     .select("*")
     .eq("is_published", true)
     .order("sort_order")
-    .limit(4);
+    .limit(6);
 
-  // Certificate count
-  const { count: certCount } = await supabase
-    .from("certificates")
-    .select("*", { count: "exact", head: true })
-    .eq("user_id", user.id);
+  const recommendedFiltered = (recommended ?? [])
+    .filter((c) => !enrolledIds.has(c.id))
+    .slice(0, 4);
 
-  // Scholarship course (if any)
+  // ------------------------------------------------------------------
+  // SCHOLARSHIP COURSE
+  // ------------------------------------------------------------------
   let scholarshipCourse: {
     id: string;
     title: string;
@@ -69,32 +100,6 @@ export default async function DashboardPage() {
     scholarshipCourse = data ?? null;
   }
 
-  // Stats
-  const totalLessons = progressRows?.length ?? 0;
-  const completedLessons =
-    progressRows?.filter((p) => p.completed).length ?? 0;
-  const inProgressLessons = totalLessons - completedLessons;
-  const avgProgress = totalLessons
-    ? Math.round(
-        progressRows!.reduce((s, p) => s + p.watched_percent, 0) / totalLessons
-      )
-    : 0;
-
-  // Streak
-  const days = new Set(
-    progressRows?.map((p) =>
-      new Date(p.updated_at).toISOString().slice(0, 10)
-    ) ?? []
-  );
-  let streak = 0;
-  const today = new Date();
-  for (let i = 0; i < 30; i++) {
-    const d = new Date(today);
-    d.setDate(today.getDate() - i);
-    if (days.has(d.toISOString().slice(0, 10))) streak++;
-    else if (i > 0) break;
-  }
-
   const fullName = profile?.full_name?.trim() || "Learner";
   const firstName = fullName.split(" ")[0];
   const role = profile?.role ?? "student";
@@ -108,8 +113,6 @@ export default async function DashboardPage() {
         year: "numeric",
       })
     : "—";
-
-  const recentActivity = progressRows?.slice(0, 5) ?? [];
 
   return (
     <>
@@ -235,7 +238,7 @@ export default async function DashboardPage() {
                   href="/courses"
                   className="inline-flex items-center justify-center gap-2 rounded-full bg-blue-700 px-5 py-2.5 text-sm font-bold text-white shadow-lg shadow-blue-700/20 transition hover:-translate-y-0.5 hover:bg-blue-800 dark:bg-blue-600 dark:hover:bg-blue-500"
                 >
-                  {totalLessons === 0 ? "Start learning" : "Continue learning"} →
+                  {totalCourses === 0 ? "Start learning" : "Browse courses"} →
                 </Link>
               </div>
             </div>
@@ -245,10 +248,10 @@ export default async function DashboardPage() {
         {/* STATS */}
         <section className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
           {[
-            { label: "Lessons started", value: totalLessons, icon: "📚", tone: "blue", delay: 0 },
-            { label: "Completed", value: completedLessons, icon: "✅", tone: "emerald", delay: 0.05 },
+            { label: "Enrolled courses", value: totalCourses, icon: "📚", tone: "blue", delay: 0 },
+            { label: "Lessons completed", value: totalLessonsCompleted, icon: "✅", tone: "emerald", delay: 0.05 },
             { label: "Day streak", value: streak, icon: "🔥", tone: "amber", delay: 0.1 },
-            { label: "Certificates", value: certCount ?? 0, icon: "🏆", tone: "purple", delay: 0.15 },
+            { label: "Certificates", value: certCount, icon: "🏆", tone: "purple", delay: 0.15 },
           ].map((s) => {
             const toneClasses = {
               blue: "bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300",
@@ -280,7 +283,7 @@ export default async function DashboardPage() {
           })}
         </section>
 
-        {/* PROGRESS */}
+        {/* OVERALL PROGRESS */}
         <section className="mt-8 animate-fade-up" style={{ animationDelay: "0.2s" }}>
           <div className="rounded-2xl border border-slate-200 bg-white p-6 sm:p-8 dark:border-[#1f2a44] dark:bg-[#131c33]">
             <div className="flex flex-wrap items-end justify-between gap-4">
@@ -289,24 +292,24 @@ export default async function DashboardPage() {
                   Overall progress
                 </h2>
                 <p className="mt-1 text-sm text-slate-600 dark:text-[#94a3b8]">
-                  Average watch progress across all started lessons
+                  Lessons completed across all your enrolled courses
                 </p>
               </div>
               <p className="text-3xl font-black text-blue-700 dark:text-blue-400">
-                {avgProgress}%
+                {overallPercent}%
               </p>
             </div>
             <div className="mt-5 h-3 overflow-hidden rounded-full bg-slate-100 dark:bg-[#0e1526]">
               <div
                 className="h-full rounded-full bg-blue-600 transition-all duration-1000 dark:bg-blue-500"
-                style={{ width: `${avgProgress}%` }}
+                style={{ width: `${overallPercent}%` }}
               />
             </div>
             <div className="mt-6 grid grid-cols-3 gap-4 text-center">
               {[
-                { label: "In progress", value: inProgressLessons },
-                { label: "Completed", value: completedLessons },
-                { label: "Avg %", value: `${avgProgress}%` },
+                { label: "Lessons done", value: completedAcrossEnrollments },
+                { label: "Total lessons", value: lessonsAcrossEnrollments },
+                { label: "Courses", value: totalCourses },
               ].map((x) => (
                 <div key={x.label}>
                   <p className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-[#94a3b8]">
@@ -321,15 +324,15 @@ export default async function DashboardPage() {
           </div>
         </section>
 
-        {/* ACTIVITY + SIDEBAR */}
+        {/* MY COURSES + SIDEBAR */}
         <section className="mt-8 grid gap-6 lg:grid-cols-5 animate-fade-up" style={{ animationDelay: "0.25s" }}>
           <div className="lg:col-span-3">
             <div className="rounded-2xl border border-slate-200 bg-white p-6 dark:border-[#1f2a44] dark:bg-[#131c33]">
               <div className="flex items-center justify-between">
                 <h2 className="text-lg font-extrabold text-slate-900 dark:text-[#f1f5f9]">
-                  Recent activity
+                  My courses
                 </h2>
-                {recentActivity.length > 0 && (
+                {courseStats.length > 5 && (
                   <Link
                     href="/dashboard/progress"
                     className="text-sm font-bold text-blue-700 transition hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300"
@@ -339,48 +342,97 @@ export default async function DashboardPage() {
                 )}
               </div>
 
-              {recentActivity.length === 0 ? (
+              {myCourses.length === 0 ? (
                 <div className="mt-6 rounded-xl bg-slate-50 py-10 text-center dark:bg-[#0e1526]">
                   <p className="text-3xl">🎯</p>
                   <p className="mt-3 font-bold text-slate-900 dark:text-[#f1f5f9]">
-                    No activity yet.
+                    No courses yet.
                   </p>
                   <p className="mt-1 text-sm text-slate-600 dark:text-[#94a3b8]">
-                    Start a lesson to see your progress here.
+                    Enroll in a course to see your progress here.
                   </p>
                 </div>
               ) : (
                 <ul className="mt-5 divide-y divide-slate-100 dark:divide-[#1f2a44]">
-                  {recentActivity.map((p) => {
-                    const lesson = Array.isArray(p.lesson) ? p.lesson[0] : p.lesson;
-                    const course = lesson?.course
-                      ? Array.isArray(lesson.course) ? lesson.course[0] : lesson.course
-                      : null;
+                  {myCourses.map((c) => {
+                    const cert = certByCourse.get(c.id);
                     return (
-                      <li key={p.id} className="flex items-center gap-4 py-4">
-                        <span className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl text-lg font-black ${course?.color ?? "bg-blue-100 text-blue-700"} dark:bg-[#1b2742] dark:text-blue-300`}>
-                          {course?.icon ?? "📘"}
-                        </span>
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-bold text-slate-900 dark:text-[#f1f5f9]">
-                            {lesson?.title ?? "Lesson"}
-                          </p>
-                          <p className="truncate text-xs text-slate-500 dark:text-[#94a3b8]">
-                            {course?.title ?? "Course"}
-                          </p>
-                          <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-[#0e1526]">
-                            <div
-                              className={`h-full rounded-full transition-all duration-700 ${
-                                p.completed ? "bg-emerald-500" : "bg-blue-600 dark:bg-blue-500"
-                              }`}
-                              style={{ width: `${p.watched_percent}%` }}
-                            />
+                      <li key={c.id} className="py-5">
+                        <div className="flex items-start gap-4">
+                          <span
+                            className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl text-lg font-black ${
+                              c.color ?? "bg-blue-100 text-blue-700"
+                            } dark:bg-[#1b2742] dark:text-blue-300`}
+                          >
+                            {c.icon ?? "📘"}
+                          </span>
+
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <p className="truncate text-sm font-bold text-slate-900 dark:text-[#f1f5f9]">
+                                {c.title}
+                              </p>
+                              {c.allDone && (
+                                <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-black uppercase text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300">
+                                  ✓ Completed
+                                </span>
+                              )}
+                            </div>
+
+                            <p className="mt-0.5 truncate text-xs text-slate-500 dark:text-[#94a3b8]">
+                              {c.category ?? "Course"} · {c.completedLessons} of{" "}
+                              {c.totalLessons} lessons · {c.percent}%
+                            </p>
+
+                            <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-[#0e1526]">
+                              <div
+                                className={`h-full rounded-full transition-all duration-700 ${
+                                  c.allDone
+                                    ? "bg-emerald-500"
+                                    : "bg-blue-600 dark:bg-blue-500"
+                                }`}
+                                style={{ width: `${c.percent}%` }}
+                              />
+                            </div>
                           </div>
                         </div>
-                        <div className="shrink-0 text-right">
-                          <p className={`text-xs font-bold ${p.completed ? "text-emerald-600 dark:text-emerald-400" : "text-blue-700 dark:text-blue-400"}`}>
-                            {p.completed ? "✓ Done" : `${p.watched_percent}%`}
-                          </p>
+
+                        <div className="mt-3 flex flex-wrap items-center gap-2 pl-16">
+                          {c.nextLessonSlug ? (
+                            <Link
+                              href={`/courses/${c.slug}/lessons/${c.nextLessonSlug}`}
+                              className="inline-flex items-center gap-1.5 rounded-lg bg-blue-700 px-4 py-2 text-xs font-bold text-white shadow-md shadow-blue-700/20 transition hover:bg-blue-800 dark:bg-blue-600 dark:hover:bg-blue-500"
+                            >
+                              {c.percent === 0 ? "Start course" : "Continue"} →
+                            </Link>
+                          ) : (
+                            <Link
+                              href={`/courses/${c.slug}`}
+                              className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-2 text-xs font-bold text-white shadow-md shadow-emerald-600/20 transition hover:bg-emerald-700"
+                            >
+                              Review course →
+                            </Link>
+                          )}
+
+                          {/* Certificate button:
+                              - only if a certificate row actually exists
+                              - links to public verify page
+                          */}
+                          {cert && (
+                            <Link
+                              href={`/verify/${cert.verification_code}`}
+                              className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-300 bg-emerald-50 px-4 py-2 text-xs font-bold text-emerald-700 transition hover:bg-emerald-100 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 dark:hover:bg-emerald-900/50"
+                            >
+                              🏆 View certificate
+                            </Link>
+                          )}
+
+                          <Link
+                            href={`/courses/${c.slug}`}
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-700 transition hover:bg-slate-50 dark:border-[#1f2a44] dark:bg-[#0e1526] dark:text-[#cbd5e1] dark:hover:bg-[#1b2742]"
+                          >
+                            View course
+                          </Link>
                         </div>
                       </li>
                     );
@@ -399,7 +451,12 @@ export default async function DashboardPage() {
                 Pick a course and start today
               </p>
               <ul className="mt-5 space-y-3">
-                {(courses ?? []).map((c) => (
+                {recommendedFiltered.length === 0 && (
+                  <li className="rounded-xl bg-slate-50 py-6 text-center text-sm text-slate-500 dark:bg-[#0e1526] dark:text-[#94a3b8]">
+                    You&apos;re enrolled in everything we have. 🎉
+                  </li>
+                )}
+                {recommendedFiltered.map((c) => (
                   <li key={c.id}>
                     <Link
                       href={`/courses/${c.slug}`}
@@ -461,7 +518,7 @@ export default async function DashboardPage() {
         </section>
 
         {/* EMPTY STATE */}
-        {totalLessons === 0 && (
+        {totalCourses === 0 && (
           <section className="mt-8 animate-fade-up" style={{ animationDelay: "0.3s" }}>
             <div className="relative overflow-hidden rounded-3xl bg-blue-700 p-10 text-white sm:p-14">
               <div className="absolute -right-16 -top-16 h-56 w-56 rounded-full border-[40px] border-white/10" />
@@ -496,6 +553,8 @@ export default async function DashboardPage() {
           </section>
         )}
       </main>
+
+      <Footer />
     </>
   );
 }

@@ -4,6 +4,7 @@ import CertificatesManager from "@/components/admin/CertificatesManager";
 export default async function AdminCertificatesPage() {
   const supabase = await createClient();
 
+  // 1) Issued certificates
   const { data: certs } = await supabase
     .from("certificates")
     .select("id, issued_at, verification_code, user_id, course_id")
@@ -46,5 +47,69 @@ export default async function AdminCertificatesPage() {
     course_icon: courseMap[c.course_id]?.icon ?? null,
   }));
 
-  return <CertificatesManager rows={rows} courses={allCourses ?? []} />;
+  // 2) Pending — passed exam but no certificate row
+  const issuedKeys = new Set(
+    (certs ?? []).map((c) => `${c.user_id}:${c.course_id}`)
+  );
+
+  const { data: passedAttempts } = await supabase
+    .from("exam_attempts")
+    .select("user_id, course_id, score, completed_at")
+    .eq("passed", true)
+    .order("completed_at", { ascending: false });
+
+  const pendingRows = (passedAttempts ?? []).filter(
+    (a) => !issuedKeys.has(`${a.user_id}:${a.course_id}`)
+  );
+
+  const pendingUserIds = Array.from(
+    new Set(pendingRows.map((a) => a.user_id))
+  );
+  const pendingCourseIds = Array.from(
+    new Set(pendingRows.map((a) => a.course_id))
+  );
+
+  const { data: pendingProfiles } = pendingUserIds.length
+    ? await supabase
+        .from("profiles")
+        .select("id, full_name")
+        .in("id", pendingUserIds)
+    : { data: [] };
+
+  const { data: pendingCourses } = pendingCourseIds.length
+    ? await supabase
+        .from("courses")
+        .select("id, title, icon, certificate_enabled")
+        .in("id", pendingCourseIds)
+    : { data: [] };
+
+  const pendingProfileMap = Object.fromEntries(
+    (pendingProfiles ?? []).map((p) => [p.id, p.full_name])
+  );
+  const pendingCourseMap = Object.fromEntries(
+    (pendingCourses ?? []).map((c) => [c.id, c])
+  );
+
+  const pending = pendingRows
+    // Only show pending for courses where certificates are enabled
+    .filter(
+      (a) => pendingCourseMap[a.course_id]?.certificate_enabled === true
+    )
+    .map((a) => ({
+      user_id: a.user_id,
+      course_id: a.course_id,
+      user_name: pendingProfileMap[a.user_id] ?? null,
+      course_title: pendingCourseMap[a.course_id]?.title ?? null,
+      course_icon: pendingCourseMap[a.course_id]?.icon ?? null,
+      score: a.score,
+      completed_at: a.completed_at,
+    }));
+
+  return (
+    <CertificatesManager
+      rows={rows}
+      courses={allCourses ?? []}
+      pending={pending}
+    />
+  );
 }
