@@ -5,6 +5,7 @@ import CourseGrid from "@/components/CourseGrid";
 import FAQ from "@/components/FAQ";
 import Reveal from "@/components/Reveal";
 import AdSlotAdsterra from "@/components/AdSlotAdsterra";
+import Link from "next/link";
 import { getCourses, getFAQs } from "@/lib/queries";
 import { getPublicSettings } from "@/lib/settings";
 
@@ -19,6 +20,9 @@ export default async function Home() {
   const slots = settings.ads_slots ?? {};
   const scholarshipOn = settings.scholarship_enabled;
 
+  const featuredCourses = courses.slice(0, 4);
+  const hasMoreCourses = courses.length > 4;
+
   return (
     <>
       <Navbar />
@@ -29,14 +33,14 @@ export default async function Home() {
           <div className="pointer-events-none absolute -right-24 -top-24 h-80 w-80 rounded-full bg-blue-100/40 blur-3xl dark:bg-blue-900/20" />
           <div className="pointer-events-none absolute -bottom-20 left-0 h-72 w-72 rounded-full bg-sky-100/40 blur-3xl dark:bg-sky-900/15" />
 
-          <div className="relative mx-auto grid max-w-7xl items-center gap-14 px-5 py-20 sm:px-8 sm:py-28 lg:grid-cols-2 lg:py-32">
+          <div className="relative mx-auto grid max-w-7xl items-center gap-14 px-5 py-16 sm:px-8 sm:py-24 lg:grid-cols-2 lg:py-28">
             <Reveal>
-              <div className="mb-7 inline-flex items-center gap-2 rounded-full border border-blue-100 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-800 dark:border-[#1f2a44] dark:bg-[#16233d] dark:text-blue-300">
+              <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-blue-100 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-800 dark:border-[#1f2a44] dark:bg-[#16233d] dark:text-blue-300">
                 <span className="h-2 w-2 rounded-full bg-blue-600 animate-pulse-dot dark:bg-blue-400" />
-                Your coding journey starts here
+                Free beginner courses
               </div>
 
-              <h1 className="max-w-2xl text-4xl font-black leading-[1.12] tracking-tight text-slate-900 sm:text-5xl lg:text-6xl dark:text-[#f1f5f9]">
+              <h1 className="max-w-2xl text-4xl font-black leading-[1.1] tracking-tight text-slate-900 sm:text-5xl lg:text-6xl dark:text-[#f1f5f9]">
                 Koyi coding.
                 <br />
                 <span className="text-blue-700 dark:text-blue-400">
@@ -45,31 +49,23 @@ export default async function Home() {
               </h1>
 
               <p className="mt-6 max-w-xl text-lg leading-8 text-slate-600 dark:text-[#94a3b8]">
-                Learn to code from the beginning with simple lessons in Hausa
-                and English. Build real skills, create projects, and take your
-                first step into technology.
+                Learn to code from the very beginning. Simple lessons in Hausa
+                and English. Real projects. No experience needed.
               </p>
 
-              <div className="mt-9 flex flex-col gap-3 sm:flex-row">
+              <div className="mt-8 flex flex-col gap-3 sm:flex-row">
                 <a
                   href="#courses"
                   className="inline-flex items-center justify-center gap-2 rounded-full bg-blue-700 px-7 py-4 font-bold text-white shadow-xl shadow-blue-700/20 transition hover:-translate-y-0.5 hover:bg-blue-800 dark:bg-blue-600 dark:hover:bg-blue-500"
                 >
                   Explore courses →
                 </a>
-                {scholarshipOn ? (
+                {scholarshipOn && (
                   <a
                     href="/scholarship"
                     className="inline-flex items-center justify-center gap-2 rounded-full border border-blue-200 bg-blue-50 px-7 py-4 font-bold text-blue-800 transition hover:-translate-y-0.5 hover:border-blue-300 hover:bg-blue-100 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-300 dark:hover:bg-blue-950/60"
                   >
                     🎓 Apply for scholarship
-                  </a>
-                ) : (
-                  <a
-                    href="#how-it-works"
-                    className="inline-flex items-center justify-center gap-2 rounded-full border border-slate-200 bg-white px-7 py-4 font-bold text-slate-700 transition hover:border-blue-200 hover:bg-blue-50 dark:border-[#1f2a44] dark:bg-[#0e1526] dark:text-[#cbd5e1] dark:hover:border-blue-600 dark:hover:bg-[#1b2742]"
-                  >
-                    How it works ↗
                   </a>
                 )}
               </div>
@@ -155,7 +151,7 @@ export default async function Home() {
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-between bg-blue-700 px-5 py-4 text-sm text-white dark:bg-blue-700">
+                  <div className="flex items-center justify-between bg-blue-700 px-5 py-4 text-sm text-white">
                     <span>Keep learning. Keep building.</span>
                     <span className="font-bold">KoyoCode ✦</span>
                   </div>
@@ -181,12 +177,40 @@ export default async function Home() {
           </div>
         </section>
 
+        {/* ==================== BENEFITS STRIP ==================== */}
+        <section className="border-y border-blue-100 bg-blue-50 dark:border-[#1f2a44] dark:bg-[#10182b]">
+          <div className="mx-auto grid max-w-7xl gap-6 px-5 py-10 sm:grid-cols-2 sm:px-8 lg:grid-cols-4">
+            {[
+              ["01", "Start from zero", "No previous experience needed"],
+              ["02", "Simple explanations", "Every concept explained clearly"],
+              ["03", "Practical learning", "Learn by building real projects"],
+              ["04", "Your own pace", "Study whenever you are ready"],
+            ].map(([n, title, desc], i) => (
+              <Reveal key={n} delay={i * 0.05}>
+                <div className="flex gap-4">
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white font-extrabold text-blue-700 shadow-sm dark:bg-[#16233d] dark:text-blue-400">
+                    {n}
+                  </span>
+                  <div>
+                    <h3 className="font-bold text-slate-900 dark:text-[#f1f5f9]">
+                      {title}
+                    </h3>
+                    <p className="mt-1 text-sm text-slate-600 dark:text-[#94a3b8]">
+                      {desc}
+                    </p>
+                  </div>
+                </div>
+              </Reveal>
+            ))}
+          </div>
+        </section>
+
         {/* ==================== SCHOLARSHIP BANNER ==================== */}
         {scholarshipOn && (
-          <section className="border-y border-blue-100 bg-blue-50 dark:border-[#1f2a44] dark:bg-[#10182b]">
-            <div className="mx-auto max-w-7xl px-5 py-8 sm:px-8">
+          <section className="border-b border-blue-100 bg-slate-50 dark:border-[#1f2a44] dark:bg-[#0e1526]">
+            <div className="mx-auto max-w-7xl px-5 py-14 sm:px-8 sm:py-20">
               <Reveal>
-                <div className="overflow-hidden rounded-3xl bg-blue-700 p-8 text-white sm:p-10">
+                <div className="overflow-hidden rounded-3xl bg-blue-700 p-8 text-white sm:p-12">
                   <div className="flex flex-col items-start justify-between gap-6 lg:flex-row lg:items-center">
                     <div className="max-w-2xl">
                       <span className="inline-flex items-center gap-2 rounded-full bg-white/15 px-4 py-2 text-xs font-bold uppercase tracking-wider">
@@ -214,41 +238,26 @@ export default async function Home() {
           </section>
         )}
 
-        {/* ==================== BENEFITS ==================== */}
-        <section className="border-y border-blue-100 bg-blue-50 dark:border-[#1f2a44] dark:bg-[#10182b]">
-          <div className="mx-auto grid max-w-7xl gap-6 px-5 py-8 sm:grid-cols-2 sm:px-8 lg:grid-cols-4">
-            {[
-              ["01", "Start from zero", "No previous experience needed"],
-              ["02", "Simple explanations", "Understand each concept clearly"],
-              ["03", "Practical learning", "Learn by building projects"],
-              ["04", "Your own pace", "Learn when you are ready"],
-            ].map(([n, title, desc], i) => (
-              <Reveal key={n} delay={i * 0.05}>
-                <div className="flex gap-4">
-                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white font-extrabold text-blue-700 shadow-sm dark:bg-[#16233d] dark:text-blue-400">
-                    {n}
-                  </span>
-                  <div>
-                    <h3 className="font-bold text-slate-900 dark:text-[#f1f5f9]">
-                      {title}
-                    </h3>
-                    <p className="mt-1 text-sm text-slate-600 dark:text-[#94a3b8]">
-                      {desc}
-                    </p>
-                  </div>
-                </div>
-              </Reveal>
-            ))}
-          </div>
-        </section>
-
         {/* ==================== COURSES ==================== */}
-        <CourseGrid courses={courses} />
+        <CourseGrid courses={featuredCourses} />
+
+        {hasMoreCourses && (
+          <section className="px-5 pb-4 sm:px-8">
+            <div className="mx-auto -mt-6 flex max-w-7xl justify-center">
+              <Link
+                href="/courses"
+                className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-7 py-3.5 font-bold text-slate-700 transition hover:-translate-y-0.5 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 dark:border-[#1f2a44] dark:bg-[#0e1526] dark:text-[#cbd5e1] dark:hover:border-blue-600 dark:hover:bg-[#1b2742]"
+              >
+                View all {courses.length} courses →
+              </Link>
+            </div>
+          </section>
+        )}
 
         {/* ==================== HOW IT WORKS ==================== */}
         <section
           id="how-it-works"
-          className="scroll-mt-24 bg-slate-50 px-5 py-20 sm:px-8 lg:py-28 dark:bg-[#0e1526]"
+          className="scroll-mt-24 bg-slate-50 px-5 py-16 sm:px-8 sm:py-24 dark:bg-[#0e1526]"
         >
           <div className="mx-auto max-w-7xl">
             <Reveal>
@@ -266,7 +275,7 @@ export default async function Home() {
               </div>
             </Reveal>
 
-            <div className="mt-14 grid gap-8 md:grid-cols-3">
+            <div className="mt-12 grid gap-8 md:grid-cols-3">
               {[
                 {
                   n: "01",
@@ -309,20 +318,23 @@ export default async function Home() {
         </section>
 
         {/* ==================== ABOUT / CTA ==================== */}
-        <section id="about" className="scroll-mt-24 px-5 py-20 sm:px-8 lg:py-28">
+        <section
+          id="about"
+          className="scroll-mt-24 px-5 py-16 sm:px-8 sm:py-24 lg:py-28"
+        >
           <div className="mx-auto grid max-w-7xl items-center gap-12 lg:grid-cols-2">
             <Reveal>
               <p className="text-sm font-extrabold uppercase tracking-[0.18em] text-blue-700 dark:text-blue-400">
                 About KoyoCode
               </p>
               <h2 className="mt-3 text-3xl font-black leading-tight tracking-tight text-slate-900 sm:text-4xl dark:text-[#f1f5f9]">
-                Technology education that feels closer to home.
+                Built for beginners. Taught in your language.
               </h2>
               <p className="mt-5 leading-8 text-slate-600 dark:text-[#94a3b8]">
-                KoyoCode aims to make learning programming less intimidating
-                for beginners. By combining practical examples with clear
-                explanations in Hausa and English, the goal is to help more
-                people take their first steps into the world of technology.
+                KoyoCode brings programming education closer to home — with
+                clear explanations in Hausa and English, practical examples,
+                and lessons designed for people who have never written a line
+                of code before.
               </p>
               <a
                 href="#courses"
@@ -338,7 +350,7 @@ export default async function Home() {
                 <div className="absolute -bottom-12 -left-12 h-48 w-48 rounded-full bg-sky-400/20 blur-2xl" />
                 <div className="relative">
                   <span className="inline-flex rounded-xl bg-white/15 px-4 py-2 text-sm font-bold">
-                    Your future starts with a first step
+                    Your future starts today
                   </span>
                   <h3 className="mt-7 text-3xl font-black leading-tight sm:text-4xl">
                     You can learn to code.
@@ -361,20 +373,11 @@ export default async function Home() {
           </div>
         </section>
 
-        {/* ==================== YOUTUBE ==================== */}
-        <section className="px-5 py-12 sm:px-8">
-          <div className="mx-auto max-w-5xl">
-            <Reveal>
-              <YouTubeSubscribe />
-            </Reveal>
-          </div>
-        </section>
-
         {/* ==================== FAQ ==================== */}
         <FAQ faqs={faqs} />
 
         {/* ==================== NEWSLETTER ==================== */}
-        <section className="px-5 pb-20 sm:px-8 lg:pb-28">
+        <section className="px-5 py-16 sm:px-8 sm:py-20">
           <Reveal>
             <div className="mx-auto max-w-5xl rounded-3xl border border-blue-100 bg-blue-50 px-6 py-10 sm:px-12 sm:py-14 dark:border-[#1f2a44] dark:bg-[#10182b]">
               <div className="mx-auto max-w-2xl text-center">
@@ -405,6 +408,15 @@ export default async function Home() {
               </div>
             </div>
           </Reveal>
+        </section>
+
+        {/* ==================== YOUTUBE ==================== */}
+        <section className="px-5 pb-16 sm:px-8 sm:pb-20">
+          <div className="mx-auto max-w-5xl">
+            <Reveal>
+              <YouTubeSubscribe />
+            </Reveal>
+          </div>
         </section>
 
         {/* ==================== AD: HOMEPAGE BOTTOM ==================== */}
