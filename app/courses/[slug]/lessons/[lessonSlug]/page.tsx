@@ -7,6 +7,7 @@ import LessonVideo from "@/components/LessonVideo";
 import LessonChallenge from "@/components/LessonChallenge";
 import QuickCheck from "@/components/QuickCheck";
 import MobileLessonSidebar from "@/components/MobileLessonSidebar";
+import MarkCompleteButton from "@/components/MarkCompleteButton";
 import { createClient } from "@/lib/supabase/server";
 import {
   getCourseBySlug,
@@ -74,14 +75,12 @@ export default async function LessonPage({
   const thisCompleted = progressMap[lesson.id] ?? false;
   const concepts = lesson.concepts ?? [];
 
-  // Quick check has enough data to render?
   const hasQuickCheck =
     lesson.quick_check_question &&
     Array.isArray(lesson.quick_check_options) &&
     lesson.quick_check_options.length >= 2 &&
     typeof lesson.quick_check_correct_index === "number";
 
-  // Exercise has enough data to render?
   const hasExercise =
     lesson.exercise_type !== "none" &&
     lesson.exercise_prompt &&
@@ -100,26 +99,30 @@ export default async function LessonPage({
     <>
       <Navbar />
 
-      <MobileLessonSidebar
-        courseSlug={course.slug}
-        courseTitle={course.title}
-        lessons={lessonsForSidebar}
-        currentLessonId={lesson.id}
-        completedCount={completedCount}
-        courseProgress={courseProgress}
-      />
+      <main className="mx-auto w-full max-w-7xl flex-1 px-5 py-6 sm:px-8 sm:py-10">
+        {/* ============ TOP ROW: back link + lesson drawer ============ */}
+        <div className="flex items-center justify-between gap-3">
+          <Link
+            href={`/courses/${course.slug}`}
+            className="truncate text-sm font-bold text-blue-700 transition hover:text-blue-900 dark:text-blue-400"
+          >
+            ← {course.title}
+          </Link>
 
-      <main className="mx-auto w-full max-w-7xl flex-1 px-5 py-8 sm:px-8 sm:py-10">
-        {/* BREADCRUMB */}
-        <Link
-          href={`/courses/${course.slug}`}
-          className="text-sm font-bold text-blue-700 transition hover:text-blue-900 dark:text-blue-400"
-        >
-          ← {course.title}
-        </Link>
+          <div className="shrink-0 lg:hidden">
+            <MobileLessonSidebar
+              courseSlug={course.slug}
+              courseTitle={course.title}
+              lessons={lessonsForSidebar}
+              currentLessonId={lesson.id}
+              completedCount={completedCount}
+              courseProgress={courseProgress}
+            />
+          </div>
+        </div>
 
         <div className="mt-6 grid gap-8 lg:grid-cols-3">
-          {/* ==================== LEFT: MAIN ==================== */}
+          {/* ============ LEFT ============ */}
           <div className="space-y-6 lg:col-span-2">
             {/* HEADER */}
             <header className="rounded-2xl border border-slate-200 bg-white p-6 sm:p-8 dark:border-[#1f2a44] dark:bg-[#131c33]">
@@ -131,7 +134,7 @@ export default async function LessonPage({
                   {lesson.duration_minutes} min
                 </span>
                 {thisCompleted && (
-                  <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300">
+                  <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 animate-checkmark-pop">
                     ✓ Completed
                   </span>
                 )}
@@ -148,18 +151,15 @@ export default async function LessonPage({
               )}
             </header>
 
-            {/* VIDEO */}
+            {/* VIDEO — only if lesson has a youtube_id */}
             {lesson.youtube_id && (
-              <LessonVideo
-                youtubeId={lesson.youtube_id}
-                title={lesson.title}
-              />
+              <LessonVideo youtubeId={lesson.youtube_id} title={lesson.title} />
             )}
 
-            {/* CONCEPTS (with EN/HA TTS) */}
+            {/* CONCEPTS */}
             {concepts.length > 0 && <LessonConcepts concepts={concepts} />}
 
-            {/* CODE CHALLENGE — Phase 3 */}
+            {/* EXERCISE */}
             {hasExercise && (
               <LessonChallenge
                 type={
@@ -172,7 +172,7 @@ export default async function LessonPage({
               />
             )}
 
-            {/* QUICK CHECK — Phase 4 */}
+            {/* QUICK CHECK */}
             {hasQuickCheck && (
               <QuickCheck
                 question={lesson.quick_check_question!}
@@ -181,6 +181,14 @@ export default async function LessonPage({
                 explanation={lesson.quick_check_explanation}
               />
             )}
+
+            {/* MARK COMPLETE */}
+            <MarkCompleteButton
+              lessonId={lesson.id}
+              courseSlug={course.slug}
+              completed={thisCompleted}
+              nextLessonSlug={nextLesson?.slug ?? null}
+            />
 
             {/* PREV / NEXT */}
             <div className="flex flex-wrap items-center justify-between gap-4">
@@ -219,7 +227,7 @@ export default async function LessonPage({
             </div>
           </div>
 
-          {/* ==================== RIGHT: SIDEBAR ==================== */}
+          {/* ============ RIGHT: DESKTOP SIDEBAR ============ */}
           <aside className="hidden lg:col-span-1 lg:block">
             <div className="sticky top-24 space-y-4">
               <div className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-[#1f2a44] dark:bg-[#131c33]">
@@ -233,7 +241,7 @@ export default async function LessonPage({
                 </div>
                 <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-100 dark:bg-[#0e1526]">
                   <div
-                    className="h-full rounded-full bg-blue-600 transition-all duration-1000 dark:bg-blue-500"
+                    className="h-full rounded-full bg-blue-600 transition-all duration-1000 dark:bg-blue-500 animate-progress-fill"
                     style={{ width: `${courseProgress}%` }}
                   />
                 </div>
