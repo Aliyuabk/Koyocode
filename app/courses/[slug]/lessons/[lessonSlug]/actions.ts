@@ -1,40 +1,37 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { revalidatePath } from "next/cache";
 
-export type ProgressSaveState = { error?: string; success?: boolean } | null;
-
-export async function saveProgress(
+export async function markLessonComplete(
   lessonId: string,
-  watchedPercent: number,
-  completed: boolean
-): Promise<ProgressSaveState> {
-  if (!lessonId) return { error: "Missing lesson." };
-
+  courseSlug: string,
+  lessonSlug: string
+) {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user) return { error: "Not logged in." };
-
-  const safePercent = Math.max(0, Math.min(100, Math.round(watchedPercent)));
+  if (!user) return { error: "Not logged in" };
 
   const { error } = await supabase.from("progress").upsert(
     {
       user_id: user.id,
       lesson_id: lessonId,
-      watched_percent: safePercent,
-      completed,
+      watched_percent: 100,
+      completed: true,
+      completed_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     },
     { onConflict: "user_id,lesson_id" }
   );
 
-  if (error) {
-    console.error("saveProgress error:", error.message);
-    return { error: error.message };
-  }
+  if (error) return { error: error.message };
+
+  revalidatePath(`/courses/${courseSlug}/lessons/${lessonSlug}`);
+  revalidatePath(`/courses/${courseSlug}`);
+  revalidatePath(`/dashboard`);
 
   return { success: true };
 }
