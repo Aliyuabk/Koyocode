@@ -44,7 +44,7 @@ export default function ScholarshipForm({ courses }: { courses: Course[] }) {
 
   const isEmailShapeValid = EMAIL_RE.test(email.trim());
   const isNameValid = fullName.trim().length >= 2;
-  const isMotivationValid = motivation.trim().length >= 5;
+  const isMotivationValid = motivation.trim().length >= 10;
   const isFormValid =
     isEmailShapeValid && isNameValid && isMotivationValid && emailVerified;
 
@@ -316,7 +316,7 @@ export default function ScholarshipForm({ courses }: { courses: Course[] }) {
 
         <Field
           label="Why do you want this scholarship? *"
-          hint={`${motivation.length} characters · minimum 50`}
+          hint={`${motivation.length} characters · minimum 10`}
         >
           <textarea
             className={inputCls}
