@@ -17,6 +17,7 @@ type Course = {
 };
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const MOTIVATION_MIN = 10;
 
 export default function ScholarshipForm({ courses }: { courses: Course[] }) {
   const [fullName, setFullName] = useState("");
@@ -44,9 +45,19 @@ export default function ScholarshipForm({ courses }: { courses: Course[] }) {
 
   const isEmailShapeValid = EMAIL_RE.test(email.trim());
   const isNameValid = fullName.trim().length >= 2;
-  const isMotivationValid = motivation.trim().length >= 10;
+  const motivationTrimmedLength = motivation.trim().length;
+  const isMotivationValid = motivationTrimmedLength >= MOTIVATION_MIN;
   const isFormValid =
     isEmailShapeValid && isNameValid && isMotivationValid && emailVerified;
+
+  // Reason for disabled submit — helpful live feedback
+  const disabledReason = !emailVerified
+    ? "Verify your email to enable submission."
+    : !isNameValid
+    ? "Enter your full name (at least 2 characters)."
+    : !isMotivationValid
+    ? `Write at least ${MOTIVATION_MIN} characters in the motivation box.`
+    : null;
 
   async function handleSendCode() {
     setError(null);
@@ -154,6 +165,10 @@ export default function ScholarshipForm({ courses }: { courses: Course[] }) {
       <p className="text-xs font-extrabold uppercase tracking-wider text-blue-700 dark:text-blue-400">
         Application form
       </p>
+      <p className="mt-2 text-sm text-slate-600 dark:text-[#94a3b8]">
+        Takes 2 minutes. Only your name, email, and a short answer are
+        required — everything else is optional.
+      </p>
 
       {error && (
         <div className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700 dark:border-red-800 dark:bg-red-950/40 dark:text-red-300">
@@ -162,6 +177,7 @@ export default function ScholarshipForm({ courses }: { courses: Course[] }) {
       )}
 
       <div className="mt-5 space-y-4">
+        {/* ============ FULL NAME ============ */}
         <Field label="Full name *">
           <input
             className={inputCls}
@@ -171,6 +187,7 @@ export default function ScholarshipForm({ courses }: { courses: Course[] }) {
           />
         </Field>
 
+        {/* ============ EMAIL + VERIFICATION ============ */}
         <div>
           <label className="mb-1.5 block text-sm font-semibold text-slate-700 dark:text-[#cbd5e1]">
             Email address *
@@ -207,6 +224,7 @@ export default function ScholarshipForm({ courses }: { courses: Course[] }) {
           )}
         </div>
 
+        {/* ============ VERIFICATION CODE ============ */}
         {codeSent && !emailVerified && (
           <div>
             <label className="mb-1.5 block text-sm font-semibold text-slate-700 dark:text-[#cbd5e1]">
@@ -237,6 +255,7 @@ export default function ScholarshipForm({ courses }: { courses: Course[] }) {
           </div>
         )}
 
+        {/* ============ CONTACT ============ */}
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Phone / WhatsApp">
             <input
@@ -256,6 +275,7 @@ export default function ScholarshipForm({ courses }: { courses: Course[] }) {
           </Field>
         </div>
 
+        {/* ============ BACKGROUND ============ */}
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Age range">
             <select
@@ -286,6 +306,7 @@ export default function ScholarshipForm({ courses }: { courses: Course[] }) {
           </Field>
         </div>
 
+        {/* ============ COURSE ============ */}
         <Field label="Which course do you want? *">
           <select
             className={inputCls}
@@ -314,19 +335,33 @@ export default function ScholarshipForm({ courses }: { courses: Course[] }) {
           </select>
         </Field>
 
+        {/* ============ MOTIVATION ============ */}
         <Field
           label="Why do you want this scholarship? *"
-          hint={`${motivation.length} characters · minimum 10`}
+          hint={`${motivationTrimmedLength} characters · minimum ${MOTIVATION_MIN}`}
         >
           <textarea
             className={inputCls}
-            rows={6}
+            rows={5}
             value={motivation}
             onChange={(e) => setMotivation(e.target.value)}
-            placeholder="Tell us what you want to build, why coding matters to you, and how you'll use this course."
+            placeholder="A sentence or two is enough. Tell us why coding matters to you and what you want to build."
           />
+          {motivationTrimmedLength > 0 && !isMotivationValid && (
+            <p className="mt-1.5 text-xs font-bold text-amber-600 dark:text-amber-400">
+              Add {MOTIVATION_MIN - motivationTrimmedLength} more character
+              {MOTIVATION_MIN - motivationTrimmedLength === 1 ? "" : "s"} to
+              continue.
+            </p>
+          )}
+          {isMotivationValid && (
+            <p className="mt-1.5 text-xs font-bold text-emerald-600 dark:text-emerald-400">
+              ✓ Looks good
+            </p>
+          )}
         </Field>
 
+        {/* ============ COMMITMENT ============ */}
         <label className="flex items-start gap-2.5 text-sm text-slate-600 dark:text-[#94a3b8]">
           <input
             type="checkbox"
@@ -339,15 +374,14 @@ export default function ScholarshipForm({ courses }: { courses: Course[] }) {
           </span>
         </label>
 
+        {/* ============ SUBMIT ============ */}
         <Btn onClick={submit} disabled={submitting || !isFormValid}>
           {submitting ? "Submitting…" : "Submit application →"}
         </Btn>
 
-        {!isFormValid && (
+        {disabledReason && (
           <p className="text-center text-xs text-slate-500 dark:text-[#94a3b8]">
-            {!emailVerified
-              ? "Verify your email to enable submission."
-              : "Complete all required fields to enable submission."}
+            {disabledReason}
           </p>
         )}
       </div>
