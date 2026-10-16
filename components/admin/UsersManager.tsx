@@ -16,6 +16,8 @@ import {
   toast,
   exportCSV,
 } from "./ui";
+import SendNotificationModal from "./SendNotificationModal";
+import { adminSendPasswordReset } from "@/app/admin/users/actions";
 
 type Row = {
   id: string;
@@ -43,6 +45,7 @@ export default function UsersManager({ rows }: { rows: Row[] }) {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [editing, setEditing] = useState<Row | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<Row | null>(null);
+  const [notifyTarget, setNotifyTarget] = useState<Row | null>(null);
 
   const [form, setForm] = useState({
     full_name: "",
@@ -129,14 +132,32 @@ export default function UsersManager({ rows }: { rows: Row[] }) {
     router.refresh();
   }
 
+  async function sendReset(r: Row) {
+    setBusyId(r.id);
+    // We need the user's email. Fetch from auth via our action,
+    // but the action only needs the email — we can get it from
+    // the profiles table if it's stored, or from auth.users via
+    // the service role. For simplicity, use an RPC that fetches it.
+    const res = await fetch("/api/admin/users/send-reset", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ user_id: r.id }),
+    });
+    setBusyId(null);
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      toast(data.error ?? "Failed to send reset", "err");
+      return;
+    }
+    toast(`Reset link sent to ${data.email ?? "user"}`);
+  }
+
   async function remove(r: Row) {
     setBusyId(r.id);
-    // Try the RPC first (cascades to auth.users)
     const { error: rpcErr } = await supabase.rpc("admin_delete_user", {
       user_id: r.id,
     });
     if (rpcErr) {
-      // Fallback — remove the profile only
       await supabase.from("profiles").delete().eq("id", r.id);
     }
     setBusyId(null);
@@ -365,6 +386,23 @@ export default function UsersManager({ rows }: { rows: Row[] }) {
                         <Btn
                           size="sm"
                           variant="ghost"
+                          onClick={() => sendReset(r)}
+                          disabled={busyId === r.id}
+                          title="Send password reset email"
+                        >
+                          Reset
+                        </Btn>
+                        <Btn
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => setNotifyTarget(r)}
+                          title="Send in-app notification"
+                        >
+                          Notify
+                        </Btn>
+                        <Btn
+                          size="sm"
+                          variant="ghost"
                           onClick={() => toggleRole(r)}
                           disabled={busyId === r.id}
                         >
@@ -434,6 +472,14 @@ export default function UsersManager({ rows }: { rows: Row[] }) {
           </Field>
         </div>
       </Modal>
+
+      {/* NOTIFY MODAL */}
+      <SendNotificationModal
+        open={!!notifyTarget}
+        onClose={() => setNotifyTarget(null)}
+        onSent={() => router.refresh()}
+        user={notifyTarget}
+      />
 
       <ConfirmDialog
         open={!!confirmDelete}

@@ -2,22 +2,22 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createClient as createAdmin } from "@supabase/supabase-js";
 import { sendEmail, escapeHtml } from "@/lib/email";
+import { resolveRecipients, type AudienceFilter } from "@/lib/audience";
 
 export const runtime = "nodejs";
-export const maxDuration = 30;
+export const maxDuration = 60;
 
 type Body = {
   title: string;
   message: string;
   link?: string | null;
   link_label?: string | null;
-  audience: "all" | "students" | "admins" | "user";
-  target_user?: string;
+  filter: AudienceFilter;
   send_email?: boolean;
 };
 
 export async function POST(req: Request) {
-  console.log("[send-notification] START");
+  console.log("[send-notification] VERSION-2 filter-based");
 
   // 1. Auth check
   const userSupabase = await createClient();
@@ -52,8 +52,7 @@ export async function POST(req: Request) {
     message,
     link,
     link_label,
-    audience,
-    target_user,
+    filter,
     send_email = false,
   } = body;
 
@@ -64,20 +63,20 @@ export async function POST(req: Request) {
     );
   }
 
-  if (audience === "user" && !target_user) {
+  if (!filter?.mode) {
     return NextResponse.json(
-      { error: "target_user required for audience=user" },
+      { error: "Missing filter.mode" },
       { status: 400 }
     );
   }
 
-  // 3. Service-role client
+  // 3. Service role client
   const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
   if (!SUPABASE_URL || !SERVICE_KEY) {
     return NextResponse.json(
-      { error: "Server misconfigured", detail: "Missing service role key" },
+      { error: "Server misconfigured" },
       { status: 500 }
     );
   }
@@ -85,30 +84,37 @@ export async function POST(req: Request) {
   const admin = createAdmin(SUPABASE_URL, SERVICE_KEY);
 
   // 4. Resolve recipients
-  let recipientIds: string[] = [];
-
-  if (audience === "user" && target_user) {
-    recipientIds = [target_user];
-  } else {
-    let query = admin.from("profiles").select("id, role");
-    if (audience === "students") query = query.eq("role", "student");
-    if (audience === "admins") query = query.eq("role", "admin");
-
-    const { data: profiles, error } = await query;
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
-    recipientIds = (profiles ?? []).map((p) => p.id);
+  const resolved = await resolveRecipients(admin, filter);
+  if (!resolved.ok) {
+    console.error("[send-notification] resolve error:", resolved.error);
+    return NextResponse.json({ error: resolved.error }, { status: 500 });
   }
+
+  const recipientIds = resolved.userIds;
 
   if (recipientIds.length === 0) {
     return NextResponse.json(
-      { error: "No recipients matched your audience" },
+      { error: "No recipients matched your filter" },
       { status: 400 }
     );
   }
 
-  // 5. Create the notification row
+  // 5. Derive the legacy audience value
+  const audienceValue: string =
+    filter.mode === "quick"
+      ? filter.quick
+      : filter.mode === "user"
+      ? "user"
+      : "segment";
+
+  console.log(
+    "[send-notification] audienceValue:",
+    audienceValue,
+    "recipients:",
+    recipientIds.length
+  );
+
+  // 6. Create the notification row
   const { data: notif, error: notifErr } = await admin
     .from("notifications")
     .insert({
@@ -116,8 +122,9 @@ export async function POST(req: Request) {
       message: message.trim(),
       link: link?.trim() || null,
       link_label: link_label?.trim() || null,
-      audience,
-      target_user: audience === "user" ? target_user : null,
+      audience: audienceValue,
+      target_user: filter.mode === "user" ? filter.userId : null,
+      audience_filter: filter.mode === "segment" ? filter : null,
       send_email,
       created_by: user.id,
       recipients: recipientIds.length,
@@ -126,13 +133,14 @@ export async function POST(req: Request) {
     .single();
 
   if (notifErr || !notif) {
+    console.error("[send-notification] insert error:", notifErr?.message);
     return NextResponse.json(
       { error: notifErr?.message ?? "Failed to create notification" },
       { status: 500 }
     );
   }
 
-  // 6. Insert per-user inbox rows
+  // 7. Inbox rows
   const inboxRows = recipientIds.map((uid) => ({
     user_id: uid,
     notification_id: notif.id,
@@ -143,10 +151,11 @@ export async function POST(req: Request) {
     .insert(inboxRows);
 
   if (inboxErr) {
+    console.error("[send-notification] inbox error:", inboxErr.message);
     return NextResponse.json({ error: inboxErr.message }, { status: 500 });
   }
 
-  // 7. Optional: send email
+  // 8. Optional emails
   let emailSent = 0;
   let emailFailed = 0;
 
@@ -172,7 +181,11 @@ export async function POST(req: Request) {
         });
         emailSent++;
       } catch (e: any) {
-        console.error("[send-notification] email failed for", uid, e?.message);
+        console.error(
+          "[send-notification] email failed for",
+          uid,
+          e?.message
+        );
         emailFailed++;
       }
     }
@@ -195,6 +208,9 @@ export async function POST(req: Request) {
   });
 }
 
+/* ============================================================
+   EMAIL TEMPLATE
+   ============================================================ */
 function buildNotificationEmail({
   title,
   message,

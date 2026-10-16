@@ -1,7 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import AdminSidebar from "@/components/admin/AdminSidebar";
-import AdminTopbar from "@/components/admin/AdminTopbar";
+import AdminShell from "@/components/admin/AdminShell";
 import { ToastHost } from "@/components/admin/ui";
 
 export default async function AdminLayout({
@@ -23,24 +22,20 @@ export default async function AdminLayout({
 
   if (profile?.role !== "admin") redirect("/dashboard");
 
+  const userName = profile?.full_name ?? "Admin";
+  const userEmail = user.email ?? "";
+  const userAvatar = profile?.avatar_url ?? "";
+
   return (
-    <div className="flex h-screen overflow-hidden bg-slate-50 dark:bg-[#0a0e1a]">
-      <AdminSidebar
-        userName={profile?.full_name ?? "Admin"}
-        userEmail={user.email ?? ""}
-        userAvatar={profile?.avatar_url ?? ""}
-      />
-      <div className="flex flex-1 flex-col overflow-hidden">
-        <AdminTopbar
-          userName={profile?.full_name ?? "Admin"}
-          userEmail={user.email ?? ""}
-          userAvatar={profile?.avatar_url ?? ""}
-        />
-        <main className="flex-1 overflow-y-auto px-6 py-8 lg:px-10">
-          {children}
-        </main>
-      </div>
+    <>
+      <AdminShell
+        userName={userName}
+        userEmail={userEmail}
+        userAvatar={userAvatar}
+      >
+        {children}
+      </AdminShell>
       <ToastHost />
-    </div>
+    </>
   );
 }

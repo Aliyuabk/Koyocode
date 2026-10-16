@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   PageHeader,
@@ -12,6 +12,8 @@ import {
   EmptyState,
   toast,
 } from "./ui";
+import AudienceFilter from "./AudienceFilter";
+import type { AudienceFilter as FilterType } from "@/lib/audience";
 
 type Notification = {
   id: string;
@@ -30,12 +32,16 @@ type UserOption = {
   role: string;
 };
 
+type Course = { id: string; title: string; icon: string | null };
+
 export default function NotificationsComposer({
   recentNotifications,
   users,
+  courses,
 }: {
   recentNotifications: Notification[];
   users: UserOption[];
+  courses: Course[];
 }) {
   const router = useRouter();
 
@@ -43,13 +49,24 @@ export default function NotificationsComposer({
   const [message, setMessage] = useState("");
   const [link, setLink] = useState("");
   const [linkLabel, setLinkLabel] = useState("");
-  const [audience, setAudience] = useState<
-    "all" | "students" | "admins" | "user"
-  >("all");
-  const [targetUser, setTargetUser] = useState("");
   const [sendEmail, setSendEmail] = useState(false);
   const [sending, setSending] = useState(false);
   const [search, setSearch] = useState("");
+
+  // Audience mode: "quick" | "user" | "segment"
+  const [audienceMode, setAudienceMode] = useState<
+    "quick" | "user" | "segment"
+  >("quick");
+  const [filter, setFilter] = useState<FilterType>({
+    mode: "quick",
+    quick: "all",
+  });
+  const [targetUser, setTargetUser] = useState("");
+
+  // Live recipient count
+  const [count, setCount] = useState<number | null>(null);
+  const [counting, setCounting] = useState(false);
+  const countAbort = useRef<AbortController | null>(null);
 
   const filteredHistory = useMemo(() => {
     return recentNotifications.filter((n) =>
@@ -57,27 +74,86 @@ export default function NotificationsComposer({
     );
   }, [recentNotifications, search]);
 
-  function audienceCount() {
-    if (audience === "all") return users.length;
-    if (audience === "students")
-      return users.filter((u) => u.role === "student").length;
-    if (audience === "admins")
-      return users.filter((u) => u.role === "admin").length;
-    return targetUser ? 1 : 0;
-  }
+  // Debounced live count
+  useEffect(() => {
+    // Compose the effective filter
+    let effectiveFilter: FilterType;
+    if (audienceMode === "quick") {
+      effectiveFilter = { mode: "quick", quick: (filter as any).quick ?? "all" };
+    } else if (audienceMode === "user") {
+      if (!targetUser) {
+        setCount(0);
+        return;
+      }
+      effectiveFilter = { mode: "user", userId: targetUser };
+    } else {
+      effectiveFilter = { ...(filter as any), mode: "segment" };
+    }
+
+    // Cancel any in-flight request
+    countAbort.current?.abort();
+    const controller = new AbortController();
+    countAbort.current = controller;
+
+    setCounting(true);
+
+    const t = window.setTimeout(async () => {
+      try {
+        const res = await fetch("/api/admin/notifications/count", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ filter: effectiveFilter }),
+          signal: controller.signal,
+        });
+        const data = await res.json();
+        if (res.ok) setCount(data.count ?? 0);
+        else setCount(null);
+      } catch (e: any) {
+        if (e.name !== "AbortError") setCount(null);
+      } finally {
+        setCounting(false);
+      }
+    }, 500);
+
+    return () => {
+      window.clearTimeout(t);
+      controller.abort();
+    };
+  }, [audienceMode, filter, targetUser]);
 
   async function send() {
     if (!title.trim() || !message.trim()) {
       toast("Title and message are required", "err");
       return;
     }
-    if (audience === "user" && !targetUser) {
-      toast("Select a user", "err");
+
+    let effectiveFilter: FilterType;
+    if (audienceMode === "quick") {
+      effectiveFilter = { mode: "quick", quick: (filter as any).quick ?? "all" };
+    } else if (audienceMode === "user") {
+      if (!targetUser) {
+        toast("Select a user", "err");
+        return;
+      }
+      effectiveFilter = { mode: "user", userId: targetUser };
+    } else {
+      effectiveFilter = { ...(filter as any), mode: "segment" };
+    }
+
+    if (!count || count === 0) {
+      toast("No recipients match this filter", "err");
       return;
     }
 
-    setSending(true);
+    // Email volume warning
+    if (sendEmail && count >= 100) {
+      const ok = confirm(
+        `You're about to send ${count} emails. Gmail SMTP has a ~500/day limit. Continue?`
+      );
+      if (!ok) return;
+    }
 
+    setSending(true);
     try {
       const res = await fetch("/api/admin/send-notification", {
         method: "POST",
@@ -87,24 +163,27 @@ export default function NotificationsComposer({
           message: message.trim(),
           link: link.trim() || null,
           link_label: linkLabel.trim() || null,
-          audience,
-          target_user: audience === "user" ? targetUser : null,
+          filter: effectiveFilter,
           send_email: sendEmail,
         }),
       });
 
       const data = await res.json();
-
       if (!res.ok) {
         toast(data.error ?? "Failed to send", "err");
-        setSending(false);
         return;
       }
 
-      const parts = [`Sent to ${data.recipients} user${data.recipients === 1 ? "" : "s"}`];
-      if (sendEmail && data.email_sent) parts.push(`${data.email_sent} emailed`);
+      const parts = [
+        `Sent to ${data.recipients} user${data.recipients === 1 ? "" : "s"}`,
+      ];
+      if (sendEmail && data.email_sent)
+        parts.push(`${data.email_sent} emailed`);
+      if (sendEmail && data.email_failed)
+        parts.push(`${data.email_failed} email failed`);
       toast(parts.join(" · "));
 
+      // Reset
       setTitle("");
       setMessage("");
       setLink("");
@@ -171,37 +250,78 @@ export default function NotificationsComposer({
             </Field>
           </div>
 
+          {/* AUDIENCE MODE */}
           <Field label="Audience">
-            <div className="grid gap-2 sm:grid-cols-2">
-              {[
-                { key: "all", label: `All users (${users.length})` },
-                {
-                  key: "students",
-                  label: `Students only (${users.filter((u) => u.role === "student").length})`,
-                },
-                {
-                  key: "admins",
-                  label: `Admins only (${users.filter((u) => u.role === "admin").length})`,
-                },
-                { key: "user", label: "Specific user" },
-              ].map((opt) => (
+            <div className="grid gap-2 sm:grid-cols-3">
+              {(
+                [
+                  { key: "quick", label: "Everyone", desc: "All / students / admins" },
+                  { key: "segment", label: "Filtered segment", desc: "By course, date, progress" },
+                  { key: "user", label: "Specific user", desc: "One person" },
+                ] as const
+              ).map((opt) => (
                 <button
                   key={opt.key}
                   type="button"
-                  onClick={() => setAudience(opt.key as any)}
-                  className={`rounded-xl border p-3 text-left text-sm font-bold transition ${
-                    audience === opt.key
-                      ? "border-purple-500 bg-purple-50 text-purple-700 dark:border-purple-500 dark:bg-purple-950/40 dark:text-purple-300"
-                      : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-[#1f2a44] dark:bg-[#0e1526] dark:text-[#cbd5e1]"
+                  onClick={() => {
+                    setAudienceMode(opt.key);
+                    if (opt.key === "quick") {
+                      setFilter({ mode: "quick", quick: "all" });
+                    } else if (opt.key === "segment") {
+                      setFilter({
+                        mode: "segment",
+                        courseId: null,
+                        courseRule: "enrolled",
+                        enrolledAfter: null,
+                        enrolledBefore: null,
+                        progressRule: "any",
+                        role: "any",
+                      });
+                    } else {
+                      setFilter({ mode: "user", userId: "" });
+                    }
+                  }}
+                  className={`rounded-xl border p-3 text-left transition ${
+                    audienceMode === opt.key
+                      ? "border-purple-500 bg-purple-50 dark:border-purple-500 dark:bg-purple-950/40"
+                      : "border-slate-200 bg-white hover:bg-slate-50 dark:border-[#1f2a44] dark:bg-[#0e1526]"
                   }`}
                 >
-                  {opt.label}
+                  <p
+                    className={`text-sm font-bold ${
+                      audienceMode === opt.key
+                        ? "text-purple-700 dark:text-purple-300"
+                        : "text-slate-900 dark:text-[#f1f5f9]"
+                    }`}
+                  >
+                    {opt.label}
+                  </p>
+                  <p className="mt-0.5 text-xs text-slate-500 dark:text-[#94a3b8]">
+                    {opt.desc}
+                  </p>
                 </button>
               ))}
             </div>
           </Field>
 
-          {audience === "user" && (
+          {/* AUDIENCE DETAILS */}
+          {audienceMode === "quick" && (
+            <AudienceFilter
+              value={filter}
+              onChange={setFilter}
+              courses={courses}
+            />
+          )}
+
+          {audienceMode === "segment" && (
+            <AudienceFilter
+              value={filter}
+              onChange={setFilter}
+              courses={courses}
+            />
+          )}
+
+          {audienceMode === "user" && (
             <Field label="Select user">
               <select
                 className={inputCls}
@@ -218,6 +338,7 @@ export default function NotificationsComposer({
             </Field>
           )}
 
+          {/* EMAIL OPTION */}
           <label className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-[#1f2a44] dark:bg-[#0e1526]">
             <input
               type="checkbox"
@@ -235,12 +356,35 @@ export default function NotificationsComposer({
             </div>
           </label>
 
+          {/* SEND BAR */}
           <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4 dark:border-[#1f2a44]">
-            <p className="text-sm text-slate-600 dark:text-[#94a3b8]">
-              Will send to <strong>{audienceCount()}</strong> recipient
-              {audienceCount() === 1 ? "" : "s"}
-            </p>
-            <Btn onClick={send} disabled={sending || audienceCount() === 0}>
+            <div>
+              <p className="text-sm text-slate-600 dark:text-[#94a3b8]">
+                {counting ? (
+                  <>Counting recipients…</>
+                ) : count === null ? (
+                  <>Could not count recipients</>
+                ) : (
+                  <>
+                    Will send to{" "}
+                    <strong className="text-slate-900 dark:text-[#f1f5f9]">
+                      {count}
+                    </strong>{" "}
+                    recipient{count === 1 ? "" : "s"}
+                  </>
+                )}
+              </p>
+              {sendEmail && count !== null && count >= 100 && (
+                <p className="mt-1 text-xs font-bold text-amber-600 dark:text-amber-400">
+                  ⚠ Gmail SMTP has a ~500/day limit
+                </p>
+              )}
+            </div>
+
+            <Btn
+              onClick={send}
+              disabled={sending || counting || !count || count === 0}
+            >
               {sending ? "Sending…" : "Send notification"}
             </Btn>
           </div>

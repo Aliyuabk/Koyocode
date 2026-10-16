@@ -135,6 +135,22 @@ export default function ScholarshipsManager({
     router.refresh();
   }
 
+  async function moveToPending(app: Application) {
+    setBusyId(app.id);
+    const { error } = await supabase
+      .from("scholarship_applications")
+      .update({
+        status: "pending",
+        reviewed_at: null,
+      })
+      .eq("id", app.id);
+    setBusyId(null);
+    if (error) return toast(error.message, "err");
+    toast("Moved back to pending");
+    setSelected(null);
+    router.refresh();
+  }
+
   function handleExport() {
     exportCSV(
       "koyocode-scholarships.csv",
@@ -167,7 +183,7 @@ export default function ScholarshipsManager({
     <div>
       <PageHeader
         title="Scholarships"
-        subtitle={`${counts.pending} pending · ${counts.approved} approved · ${counts.rejected} rejected`}
+        subtitle={`${counts.pending} pending · ${counts.waitlisted} waitlisted · ${counts.approved} approved · ${counts.rejected} rejected`}
         action={
           <Btn variant="ghost" size="sm" onClick={handleExport}>
             ⬇ CSV
@@ -268,6 +284,7 @@ export default function ScholarshipsManager({
                 </div>
 
                 <div className="flex shrink-0 flex-col gap-2">
+                  {/* PENDING — full triage options */}
                   {a.status === "pending" && (
                     <>
                       <Btn
@@ -296,6 +313,44 @@ export default function ScholarshipsManager({
                       </Btn>
                     </>
                   )}
+
+                  {/* WAITLISTED — can be promoted or rejected */}
+                  {a.status === "waitlisted" && (
+                    <>
+                      <Btn
+                        size="sm"
+                        variant="success"
+                        onClick={() => approve(a)}
+                        disabled={busyId === a.id}
+                      >
+                        Approve
+                      </Btn>
+                      <Btn
+                        size="sm"
+                        variant="danger"
+                        onClick={() => reject(a)}
+                        disabled={busyId === a.id}
+                      >
+                        Reject
+                      </Btn>
+                    </>
+                  )}
+
+                  {/* REJECTED — can be reconsidered */}
+                  {a.status === "rejected" && (
+                    <>
+                      <Btn
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => moveToPending(a)}
+                        disabled={busyId === a.id}
+                      >
+                        Reconsider
+                      </Btn>
+                    </>
+                  )}
+
+                  {/* APPROVED — nothing to do, but keep View accessible */}
                   <Btn
                     size="sm"
                     variant="ghost"
@@ -379,6 +434,70 @@ export default function ScholarshipsManager({
               <p className="mt-1 whitespace-pre-wrap rounded-xl bg-slate-50 p-4 text-slate-700 dark:bg-[#0e1526] dark:text-[#cbd5e1]">
                 {selected.motivation}
               </p>
+            </div>
+
+            {/* MODAL ACTIONS — mirror the row actions */}
+            <div className="flex flex-wrap gap-2 border-t border-slate-100 pt-4 dark:border-[#1f2a44]">
+              {selected.status === "pending" && (
+                <>
+                  <Btn
+                    size="sm"
+                    variant="success"
+                    onClick={() => approve(selected)}
+                    disabled={busyId === selected.id}
+                  >
+                    Approve
+                  </Btn>
+                  <Btn
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => waitlist(selected)}
+                    disabled={busyId === selected.id}
+                  >
+                    Waitlist
+                  </Btn>
+                  <Btn
+                    size="sm"
+                    variant="danger"
+                    onClick={() => reject(selected)}
+                    disabled={busyId === selected.id}
+                  >
+                    Reject
+                  </Btn>
+                </>
+              )}
+
+              {selected.status === "waitlisted" && (
+                <>
+                  <Btn
+                    size="sm"
+                    variant="success"
+                    onClick={() => approve(selected)}
+                    disabled={busyId === selected.id}
+                  >
+                    Approve
+                  </Btn>
+                  <Btn
+                    size="sm"
+                    variant="danger"
+                    onClick={() => reject(selected)}
+                    disabled={busyId === selected.id}
+                  >
+                    Reject
+                  </Btn>
+                </>
+              )}
+
+              {selected.status === "rejected" && (
+                <Btn
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => moveToPending(selected)}
+                  disabled={busyId === selected.id}
+                >
+                  Reconsider
+                </Btn>
+              )}
             </div>
           </div>
         )}
