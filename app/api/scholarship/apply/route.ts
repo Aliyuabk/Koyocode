@@ -4,6 +4,10 @@ import { createClient } from "@supabase/supabase-js";
 export const runtime = "nodejs";
 export const maxDuration = 30;
 
+const MOTIVATION_MIN = 10;
+const NAME_MIN = 2;
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 type Body = {
   full_name: string;
   email: string;
@@ -35,7 +39,7 @@ export async function POST(req: Request) {
     course_id,
   } = body;
 
-  // 2. Basic validation
+  // 2. Basic presence check
   if (!full_name?.trim() || !email?.trim() || !motivation?.trim()) {
     return NextResponse.json(
       { error: "Missing required fields" },
@@ -43,8 +47,16 @@ export async function POST(req: Request) {
     );
   }
 
+  // 3. Name length
+  if (full_name.trim().length < NAME_MIN) {
+    return NextResponse.json(
+      { error: `Name must be at least ${NAME_MIN} characters` },
+      { status: 400 }
+    );
+  }
+
+  // 4. Email format
   const emailClean = email.trim().toLowerCase();
-  const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   if (!EMAIL_RE.test(emailClean)) {
     return NextResponse.json(
       { error: "Invalid email format" },
@@ -52,14 +64,15 @@ export async function POST(req: Request) {
     );
   }
 
-  if (motivation.trim().length < 50) {
+  // 5. Motivation length — now 10 characters
+  if (motivation.trim().length < MOTIVATION_MIN) {
     return NextResponse.json(
-      { error: "Motivation must be at least 50 characters" },
+      { error: `Motivation must be at least ${MOTIVATION_MIN} characters` },
       { status: 400 }
     );
   }
 
-  // 3. Service role client — bypasses RLS
+  // 6. Service role client — bypasses RLS
   const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
@@ -73,7 +86,7 @@ export async function POST(req: Request) {
 
   const admin = createClient(SUPABASE_URL, SERVICE_KEY);
 
-  // 4. Check for duplicate — one application per email
+  // 7. Check for duplicate — one application per email
   const { data: existing } = await admin
     .from("scholarship_applications")
     .select("id, status")
@@ -94,7 +107,27 @@ export async function POST(req: Request) {
     );
   }
 
-  // 5. Insert the application
+  // 8. Verify the email was actually verified via the code flow
+  //    (prevents someone bypassing the form and POSTing directly)
+  const { data: verifiedRow } = await admin
+    .from("email_verifications")
+    .select("id, used, expires_at")
+    .eq("email", emailClean)
+    .eq("purpose", "scholarship")
+    .eq("used", true)
+    .gte("expires_at", new Date(Date.now() - 30 * 60 * 1000).toISOString())
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (!verifiedRow) {
+    return NextResponse.json(
+      { error: "Please verify your email before submitting." },
+      { status: 403 }
+    );
+  }
+
+  // 9. Insert the application
   const { data: inserted, error: insertErr } = await admin
     .from("scholarship_applications")
     .insert({
